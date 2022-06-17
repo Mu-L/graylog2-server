@@ -20,7 +20,6 @@ import type { PluginRoute } from 'graylog-web-plugin';
 
 import App from 'routing/App';
 import PageContentLayout from 'components/layout/PageContentLayout';
-import history from 'util/History';
 import AppConfig from 'util/AppConfig';
 import RoutePaths from 'routing/Routes';
 import { appPrefixed } from 'util/URLUtils';
