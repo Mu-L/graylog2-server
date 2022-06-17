@@ -37,8 +37,8 @@ type Props = {
 };
 
 const NewDashboardPage = ({ location }: Props) => {
-  const { state = {} } = location;
-  const { view: searchView } = state;
+  const { state } = location;
+  const { view: searchView } = state ?? {};
   const loadedView = useMemo(() => {
     if (searchView?.search) {
       const dashboardView = viewTransformer(searchView);
