@@ -48,6 +48,7 @@ const emptyLocation = {
   search: '',
   hash: '',
   state: undefined,
+  key: '',
 };
 
 describe('DashboardPageContextProvider', () => {
@@ -74,7 +75,7 @@ describe('DashboardPageContextProvider', () => {
 
     contextValue.setDashboardPage('page-id');
 
-    expect(mockNavigate).toHaveBeenCalledWith('?page=page-id');
+    expect(mockNavigate).toHaveBeenCalledWith('?page=page-id', { replace: true });
   });
 
   it('should update url on page change', () => {
@@ -93,7 +94,7 @@ describe('DashboardPageContextProvider', () => {
 
     contextValue.setDashboardPage('page-id');
 
-    expect(mockNavigate).toHaveBeenCalledWith('?page=page-id');
+    expect(mockNavigate).toHaveBeenCalledWith('?page=page-id', { replace: true });
   });
 
   it('should unset a page from url', () => {
@@ -112,7 +113,7 @@ describe('DashboardPageContextProvider', () => {
 
     contextValue.unsetDashboardPage();
 
-    expect(mockNavigate).toHaveBeenCalledWith('');
+    expect(mockNavigate).toHaveBeenCalledWith('', { replace: true });
   });
 
   it('should not set to an unknown page', () => {
@@ -131,6 +132,6 @@ describe('DashboardPageContextProvider', () => {
 
     contextValue.setDashboardPage('new');
 
-    expect(mockNavigate).toHaveBeenCalledWith('');
+    expect(mockNavigate).toHaveBeenCalledWith('', { replace: true });
   });
 });
