@@ -16,7 +16,7 @@
  */
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { useLocation, useHistory } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import URI from 'urijs';
 
 import useQuery from 'routing/useQuery';
@@ -68,7 +68,7 @@ const DashboardPageContextProvider = ({ children }: { children: React.ReactNode 
   const states = useStore(ViewStatesStore);
   const { search, pathname } = useLocation();
   const query = pathname + search;
-  const history = useHistory();
+  const navigate = useNavigate();
   const [dashboardPage, setDashboardPage] = useState<string | undefined>();
   const params = useQuery();
   const uriParams = useMemo(() => ({
@@ -82,7 +82,7 @@ const DashboardPageContextProvider = ({ children }: { children: React.ReactNode 
     const updatePageParams = (newPage: string | undefined) => {
       const newUri = _updateQueryParams(newPage, query);
 
-      history.replace(newUri);
+      navigate(newUri, { replace: true });
     };
 
     const setDashboardPageParam = (nextPage: string) => updatePageParams(nextPage);
@@ -93,7 +93,7 @@ const DashboardPageContextProvider = ({ children }: { children: React.ReactNode 
       unsetDashboardPage: unSetDashboardPageParam,
       dashboardPage: dashboardPage,
     });
-  }, [dashboardPage, history, query]);
+  }, [dashboardPage, navigate, query]);
 
   return (
     <DashboardPageContext.Provider value={dashboardPageContextValue}>

@@ -17,7 +17,7 @@
 import * as React from 'react';
 import { isEqual } from 'lodash';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useLocation, useHistory } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import URI from 'urijs';
 
@@ -94,20 +94,20 @@ const useSyncStateWithQueryParams = ({ focusedWidget, focusUriParams, setFocused
   }, [focusedWidget, setFocusedWidget, widgets, focusUriParams]);
 };
 
-const useCleanupQueryParams = ({ focusUriParams, widgets, query, history }) => {
+const useCleanupQueryParams = ({ focusUriParams, widgets, query, navigate }) => {
   useEffect(() => {
     if ((focusUriParams?.id && !widgets.has(focusUriParams.id) && focusUriParams.isPageShown) || (focusUriParams?.id === undefined)) {
       const baseURI = _clearURI(query);
 
-      history.replace(baseURI.toString());
+      navigate(baseURI.toString(), { replace: true });
     }
-  }, [focusUriParams, widgets, query, history]);
+  }, [focusUriParams, widgets, query, navigate]);
 };
 
 const WidgetFocusProvider = ({ children }: { children: React.ReactNode }): React.ReactElement => {
   const { search, pathname } = useLocation();
   const query = pathname + search;
-  const history = useHistory();
+  const navigate = useNavigate();
   const [focusedWidget, setFocusedWidget] = useState<FocusContextState | undefined>();
   const widgets = useStore(WidgetStore);
   const { activeQuery } = useStore(ViewMetadataStore);
@@ -121,7 +121,7 @@ const WidgetFocusProvider = ({ children }: { children: React.ReactNode }): React
 
   useSyncStateWithQueryParams({ focusedWidget, setFocusedWidget, widgets, focusUriParams });
 
-  useCleanupQueryParams({ focusUriParams, widgets, query, history });
+  useCleanupQueryParams({ focusUriParams, widgets, query, navigate });
 
   const updateFocusQueryParams = useCallback((newQueryParams: WidgetFocusRequest | WidgetEditRequest | undefined) => {
     const newURI = _updateQueryParams(
@@ -129,8 +129,8 @@ const WidgetFocusProvider = ({ children }: { children: React.ReactNode }): React
       query,
     );
 
-    history.replace(newURI);
-  }, [history, query]);
+    navigate(newURI, { replace: true });
+  }, [navigate, query]);
 
   const setWidgetFocusing = useCallback((widgetId: string) => updateFocusQueryParams({
     id: widgetId,

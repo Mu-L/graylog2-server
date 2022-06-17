@@ -25,13 +25,11 @@ import WidgetFocusProvider from 'views/components/contexts/WidgetFocusProvider';
 import WidgetFocusContext from 'views/components/contexts/WidgetFocusContext';
 import SearchActions from 'views/actions/SearchActions';
 
-const mockHistoryReplace = jest.fn();
+const mockNavigate = jest.fn();
 
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
-  useHistory: () => ({
-    replace: mockHistoryReplace,
-  }),
+  useNavigate: mockNavigate,
   useLocation: jest.fn(() => ({
     pathname: '',
     search: '',
@@ -78,7 +76,7 @@ describe('WidgetFocusProvider', () => {
 
     contextValue.setWidgetFocusing('widget-id');
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('?focusedId=widget-id&focusing=true');
+    expect(mockNavigate).toHaveBeenCalledWith('?focusedId=widget-id&focusing=true');
   });
 
   it('should update url on widget focus close', () => {
@@ -97,7 +95,7 @@ describe('WidgetFocusProvider', () => {
 
     contextValue.unsetWidgetFocusing();
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('');
+    expect(mockNavigate).toHaveBeenCalledWith('');
   });
 
   it('should set widget focus based on url', () => {
@@ -128,7 +126,7 @@ describe('WidgetFocusProvider', () => {
 
     contextValue.setWidgetEditing('widget-id');
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('?focusedId=widget-id&editing=true');
+    expect(mockNavigate).toHaveBeenCalledWith('?focusedId=widget-id&editing=true');
   });
 
   it('should update url on widget edit close', () => {
@@ -147,7 +145,7 @@ describe('WidgetFocusProvider', () => {
 
     contextValue.unsetWidgetEditing();
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('');
+    expect(mockNavigate).toHaveBeenCalledWith('');
   });
 
   it('should set widget edit and focused based on url', () => {
@@ -183,11 +181,11 @@ describe('WidgetFocusProvider', () => {
 
     contextValue.setWidgetEditing('widget-id');
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('?focusedId=widget-id&focusing=true&editing=true');
+    expect(mockNavigate).toHaveBeenCalledWith('?focusedId=widget-id&focusing=true&editing=true');
 
     contextValue.unsetWidgetEditing();
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('?focusedId=widget-id&focusing=true');
+    expect(mockNavigate).toHaveBeenCalledWith('?focusedId=widget-id&focusing=true');
   });
 
   it('should not set focused widget from url and cleanup url if the widget does not exist', () => {
@@ -208,7 +206,7 @@ describe('WidgetFocusProvider', () => {
 
     expect(contextValue.focusedWidget).toBe(undefined);
 
-    expect(mockHistoryReplace).toHaveBeenCalledWith('');
+    expect(mockNavigate).toHaveBeenCalledWith('');
   });
 
   it('should not trigger search execution when no focus mode was requested', async () => {
