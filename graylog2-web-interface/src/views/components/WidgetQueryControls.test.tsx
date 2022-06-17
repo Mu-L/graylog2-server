@@ -16,7 +16,6 @@
  */
 import * as React from 'react';
 import { render, fireEvent, waitFor, screen } from 'wrappedTestingLibrary';
-import WrappingContainer from 'WrappingContainer';
 
 import MockStore from 'helpers/mocking/StoreMock';
 import { GlobalOverrideActions } from 'views/stores/GlobalOverrideStore';
@@ -109,11 +108,9 @@ describe('WidgetQueryControls', () => {
     .build();
 
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <WrappingContainer>
-      <WidgetContext.Provider value={widget}>
-        {children}
-      </WidgetContext.Provider>
-    </WrappingContainer>
+    <WidgetContext.Provider value={widget}>
+      {children}
+    </WidgetContext.Provider>
   );
 
   const renderSUT = (props = {}) => render(
