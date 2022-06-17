@@ -21,9 +21,17 @@ import UserNotification from 'util/UserNotification';
 import * as URLUtils from 'util/URLUtils';
 import { singletonStore, singletonActions } from 'logic/singleton';
 
+type DisplayGettingStarted = {
+  show: boolean,
+};
+
+type GettingStartedActionsType = {
+  getStatus: () => Promise<DisplayGettingStarted>,
+  dismiss: () => Promise<void>,
+}
 export const GettingStartedActions = singletonActions(
   'core.GettingStarted',
-  () => Reflux.createActions({
+  () => Reflux.createActions<GettingStartedActionsType>({
     getStatus: { asyncResult: true },
     dismiss: { asyncResult: true },
   }),
@@ -31,7 +39,7 @@ export const GettingStartedActions = singletonActions(
 
 export const GettingStartedStore = singletonStore(
   'core.GettingStarted',
-  () => Reflux.createStore({
+  () => Reflux.createStore<{ status: DisplayGettingStarted }>({
     listenables: [GettingStartedActions],
     sourceUrl: '/system/gettingstarted',
     status: undefined,
@@ -49,13 +57,13 @@ export const GettingStartedStore = singletonStore(
     },
 
     getStatus() {
-      const promise = fetch('GET', URLUtils.qualifyUrl(this.sourceUrl));
+      const promise: Promise<DisplayGettingStarted> = fetch('GET', URLUtils.qualifyUrl(this.sourceUrl));
 
       promise
         .then(
           (response) => {
             this.status = response;
-            this.trigger({ status: this.status });
+            this.trigger({ status: response });
 
             return response;
           },
