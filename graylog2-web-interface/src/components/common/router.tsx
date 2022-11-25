@@ -60,7 +60,6 @@ const LinkContainer = ({ children, onClick, to: toProp, relativeActive, ...rest 
     [pathname, to, className, displayName, relativeActive],
   );
   const handleClick = useLinkClickHandler(to);
-  const navigate = useNavigate();
   const _onClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!isLeftClickEvent(e) || isModifiedEvent(e) || disabled) {
       return;
@@ -80,7 +79,7 @@ const LinkContainer = ({ children, onClick, to: toProp, relativeActive, ...rest 
     if (!disabled) {
       handleClick(to);
     }
-  }, [childrenOnClick, navigate, disabled, onClick, to]);
+  }, [disabled, childrenOnClick, onClick, handleClick, to]);
 
   return React.cloneElement(React.Children.only(children), {
     ...rest,
