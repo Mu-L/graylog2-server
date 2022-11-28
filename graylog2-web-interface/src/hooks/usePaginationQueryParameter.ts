@@ -15,7 +15,7 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import URI from 'urijs';
-import { useHistory, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import useQuery from 'routing/useQuery';
 
@@ -32,13 +32,13 @@ export type PaginationQueryParameterResult = {
 
 const usePaginationQueryParameter = (PAGE_SIZES: number[] = DEFAULT_PAGE_SIZES): PaginationQueryParameterResult => {
   const { page: pageQueryParameter, pageSize: pageSizeQueryParameter } = useQuery();
-  const history = useHistory();
+  const navigate = useNavigate();
   const { search, pathname } = useLocation();
   const query = pathname + search;
 
   const setPage = (newPage: number) => {
     const uri = new URI(query).setSearch('page', String(newPage));
-    history.replace(uri.toString());
+    navigate(uri.toString());
   };
 
   const resetPage = () => {
@@ -47,7 +47,7 @@ const usePaginationQueryParameter = (PAGE_SIZES: number[] = DEFAULT_PAGE_SIZES):
 
   const setPageSize = (newPageSize: number) => {
     const uri = new URI(query).setSearch({ page: String(DEFAULT_PAGE), pageSize: String(newPageSize) });
-    history.replace(uri.toString());
+    navigate(uri.toString());
   };
 
   const pageQueryParameterAsNumber = Number(pageQueryParameter);
