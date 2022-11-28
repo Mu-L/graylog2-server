@@ -14,12 +14,12 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-import * as React from 'react';
 import PropTypes from 'prop-types';
-import { Prompt, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useCallback, useEffect } from 'react';
 
 import AppConfig from 'util/AppConfig';
+import usePrompt from 'components/common/usePrompt';
 
 /**
  * This component should be conditionally rendered if you have a form that is in a "dirty" state. It will confirm with the user that they want to navigate away, refresh, or in any way unload the component.
@@ -50,9 +50,9 @@ const ConfirmLeaveDialog = ({ question }: Props) => {
     };
   }, [handleLeavePage]);
 
-  return (
-    <Prompt when={!AppConfig.gl2DevMode()} message={isLeavingPage} />
-  );
+  usePrompt(isLeavingPage, AppConfig.gl2DevMode());
+
+  return null;
 };
 
 ConfirmLeaveDialog.propTypes = {
