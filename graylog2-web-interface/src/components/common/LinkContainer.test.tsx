@@ -15,7 +15,7 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import * as React from 'react';
-import { render, screen, waitFor, screen } from 'wrappedTestingLibrary';
+import { render, screen, waitFor } from 'wrappedTestingLibrary';
 import { fireEvent } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 
@@ -129,14 +129,20 @@ describe('LinkContainer', () => {
 
   it('should not redirect onclick, when children is disabled', async () => {
     render(
-      <LinkContainer to="/">
-        <Button bsStyle="info" disabled>All Alerts</Button>
-      </LinkContainer>,
+      <Routes>
+        <Route path="/"
+               element={(
+                 <LinkContainer to="/">
+                   <Button bsStyle="info" disabled>All Alerts</Button>
+                 </LinkContainer>
+               )} />
+        <Route path="/alerts" element={<span>Hello world!</span>} />
+      </Routes>,
     );
 
     fireEvent.click(await screen.findByText('All Alerts'));
 
-    expect(history.push).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Hello World!/i)).not.toBeInTheDocument();
   });
 
   it('should add target URL as href to children, when children is disabled', async () => {
