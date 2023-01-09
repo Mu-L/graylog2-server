@@ -21,6 +21,7 @@ import { useContext } from 'react';
 import FieldTypesContext from 'views/components/contexts/FieldTypesContext';
 import type { WidgetConfigFormValues } from 'views/components/aggregationwizard/WidgetConfigForm';
 import parseNumber from 'views/components/aggregationwizard/grouping/parseNumber';
+import useActiveQueryId from 'views/hooks/useActiveQueryId';
 
 import FieldSelect from '../../FieldSelect';
 
@@ -35,12 +36,13 @@ const defaultLimit = 15;
 
 const FieldComponent = ({ index, fieldType }: Props) => {
   const fieldTypes = useContext(FieldTypesContext);
+  const queryId = useActiveQueryId();
   const { setFieldValue, values } = useFormikContext<WidgetConfigFormValues>();
   const grouping = values.groupBy.groupings[index];
 
   const onChangeField = (e: { target: { name: string, value: string } }, name: string, onChange) => {
     const fieldName = e.target.value;
-    const newField = fieldTypes.all.find((field) => field.name === fieldName);
+    const newField = fieldTypes.queryFields.get(queryId, fieldTypes.all).find((field) => field.name === fieldName);
     const newFieldType = newField?.type.type === 'date' ? 'time' : 'values';
 
     if (fieldType !== newFieldType) {
