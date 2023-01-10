@@ -16,7 +16,6 @@
  */
 import * as React from 'react';
 import { useState, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 
 import { Button } from 'components/bootstrap';
 import { PaginatedList, SearchForm, Spinner, NoEntitiesExist, NoSearchResult } from 'components/common';
@@ -25,13 +24,10 @@ import ViewLoaderContext from 'views/logic/ViewLoaderContext';
 import QueryHelper from 'components/common/QueryHelper';
 import type { ColumnRenderers } from 'components/common/EntityDataTable';
 import EntityDataTable from 'components/common/EntityDataTable';
-import type { PaginatedViews } from 'views/stores/ViewManagementStore';
-import { SavedSearchesActions } from 'views/stores/SavedSearchesStore';
-import type FetchError from 'logic/errors/FetchError';
-import UserNotification from 'util/UserNotification';
 import Routes from 'routing/Routes';
 import { Link } from 'components/common/router';
 import type { Sort } from 'stores/PaginationTypes';
+import useSavedSearches from 'views/hooks/useSavedSearches';
 
 type SearchParams = {
   page: number,
@@ -96,36 +92,6 @@ const onDelete = (e, savedSearch: View, deleteSavedSearch: (search: View) => Pro
   }
 };
 
-const usePaginatedSavedSearches = (searchParams: SearchParams): {
-  data: PaginatedViews | undefined,
-  refetch: () => void,
-  isLoading: boolean
-} => {
-  const { data, refetch, isLoading } = useQuery(
-    ['saved-searches', 'overview', searchParams],
-    () => SavedSearchesActions.search({
-      query: searchParams.query,
-      page: searchParams.page,
-      perPage: searchParams.pageSize,
-      sortBy: searchParams.sort.attributeId,
-      order: searchParams.sort.direction,
-    }),
-    {
-      onError: (error: FetchError) => {
-        UserNotification.error(`Fetching saved searches failed with status: ${error}`,
-          'Could not retrieve saved searches');
-      },
-      keepPreviousData: true,
-    },
-  );
-
-  return ({
-    data,
-    refetch,
-    isLoading,
-  });
-};
-
 type Props = {
   activeSavedSearchId: string,
   deleteSavedSearch: (view: View) => Promise<View>,
@@ -148,7 +114,7 @@ const SavedSearchesList = ({
     },
   });
 
-  const { data, isLoading, refetch } = usePaginatedSavedSearches(searchParams);
+  const { data: paginatedSavedSearches, isLoading, refetch } = useSavedSearches(searchParams);
 
   const handleSearch = useCallback(
     (newQuery: string) => setSearchParams((cur) => ({
@@ -195,7 +161,7 @@ const SavedSearchesList = ({
     return <Spinner />;
   }
 
-  const { list: savedSearches, pagination, attributes } = data;
+  const { list: savedSearches, pagination, attributes } = paginatedSavedSearches;
 
   return (
     <PaginatedList onChange={handlePageSizeChange}
