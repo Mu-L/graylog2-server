@@ -41,13 +41,7 @@ type SearchParams = {
 }
 
 const INITIAL_COLUMNS = ['title', 'description', 'summary'];
-const COLUMN_DEFINITIONS = [
-  { id: 'created_at', title: 'Created At', sortable: true },
-  { id: 'title', title: 'Title', sortable: true },
-  { id: 'description', title: 'Description', sortable: true },
-  { id: 'summary', title: 'Summary', sortable: true },
-  { id: 'owner', title: 'Owner', sortable: true },
-];
+const COLUMNS_ORDER = ['title', 'summary', 'description', 'owner', 'created_at'];
 
 const DEFAULT_PAGINATION = {
   query: '',
@@ -201,7 +195,7 @@ const SavedSearchesList = ({
     return <Spinner />;
   }
 
-  const { list: savedSearches, pagination } = data;
+  const { list: savedSearches, pagination, attributes } = data;
 
   return (
     <PaginatedList onChange={handlePageSizeChange}
@@ -229,12 +223,13 @@ const SavedSearchesList = ({
       {!!savedSearches?.length && (
         <EntityDataTable<View> data={savedSearches}
                                visibleColumns={visibleColumns}
+                               columnsOrder={COLUMNS_ORDER}
                                onColumnsChange={onColumnsChange}
                                onSortChange={onSortChange}
                                activeSort={searchParams.sort}
                                rowActions={renderSavedSearchActions}
                                columnRenderers={columnRenderers}
-                               columnDefinitions={COLUMN_DEFINITIONS} />
+                               columnDefinitions={attributes} />
       )}
     </PaginatedList>
   );
