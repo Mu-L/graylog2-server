@@ -30,14 +30,7 @@ import DashboardActions from 'views/components/dashboard/DashboardsOverview/Dash
 import TitleCell from './TitleCell';
 
 const INITIAL_COLUMNS = ['title', 'description', 'summary'];
-
-const COLUMN_DEFINITIONS = [
-  { id: 'created_at', title: 'Created At', sortable: true },
-  { id: 'title', title: 'Title', sortable: true },
-  { id: 'description', title: 'Description', sortable: true },
-  { id: 'summary', title: 'Summary', sortable: true },
-  { id: 'owner', title: 'Owner', sortable: true },
-];
+const COLUMNS_ORDER = ['title', 'summary', 'description', 'owner', 'created_at'];
 
 const useCustomColumnRenderers = () => {
   const requirementsProvided = usePluginEntities('views.requires.provided');
@@ -96,7 +89,7 @@ const DashboardsOverview = () => {
     return <Spinner />;
   }
 
-  const { list: dashboards, pagination } = paginatedDashboards;
+  const { list: dashboards, pagination, attributes } = paginatedDashboards;
 
   return (
     <PaginatedList onChange={onPageChange}
@@ -124,7 +117,8 @@ const DashboardsOverview = () => {
                                activeSort={searchParams.sort}
                                rowActions={renderDashboardActions}
                                columnRenderers={columnRenderers}
-                               columnDefinitions={COLUMN_DEFINITIONS} />
+                               columnsOrder={COLUMNS_ORDER}
+                               columnDefinitions={attributes} />
       )}
     </PaginatedList>
   );
