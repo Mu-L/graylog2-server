@@ -27,7 +27,11 @@ import org.graylog.plugins.views.search.views.ViewDTO;
 import org.graylog.plugins.views.search.views.ViewService;
 import org.graylog.plugins.views.search.views.ViewSummaryDTO;
 import org.graylog2.database.PaginatedList;
-import org.graylog2.rest.models.PaginatedResponse;
+import org.graylog2.rest.models.tools.responses.PageListResponse;
+import org.graylog2.rest.resources.entities.EntityAttribute;
+import org.graylog2.rest.resources.entities.EntityDefaults;
+import org.graylog2.rest.resources.entities.Sorting;
+import org.graylog2.rest.resources.entities.annotations.EntityAttributesAnnotationParser;
 import org.graylog2.search.SearchQuery;
 import org.graylog2.search.SearchQueryField;
 import org.graylog2.search.SearchQueryParser;
@@ -42,6 +46,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import java.util.List;
+import java.util.Locale;
 
 import static java.util.Locale.ENGLISH;
 import static org.graylog2.shared.rest.documentation.generator.Generator.CLOUD_VISIBLE;
@@ -60,22 +66,32 @@ public class DashboardsResource extends RestResource {
     private final ViewService dbService;
     private final SearchQueryParser searchQueryParser;
 
+    private final List<EntityAttribute> viewSummaryDtoAttributes;
+
+    private static final String DEFAULT_SORT_FIELD = ViewDTO.FIELD_TITLE;
+    private static final String DEFAULT_SORT_DIRECTION = "asc";
+    private static final EntityDefaults settings = EntityDefaults.builder()
+            .sort(Sorting.create(DEFAULT_SORT_FIELD, Sorting.Direction.valueOf(DEFAULT_SORT_DIRECTION.toUpperCase(Locale.ROOT))))
+            .build();
+
     @Inject
-    public DashboardsResource(ViewService dbService) {
+    public DashboardsResource(final ViewService dbService,
+                              final EntityAttributesAnnotationParser entityAttributesAnnotationParser) {
         this.dbService = dbService;
         this.searchQueryParser = new SearchQueryParser(ViewDTO.FIELD_TITLE, SEARCH_FIELD_MAPPING);
+        this.viewSummaryDtoAttributes = entityAttributesAnnotationParser.parse(ViewSummaryDTO.class);
     }
 
     @GET
     @ApiOperation("Get a list of all dashboards")
     @Timed
-    public PaginatedResponse<ViewSummaryDTO> views(@ApiParam(name = "page") @QueryParam("page") @DefaultValue("1") int page,
+    public PageListResponse<ViewSummaryDTO> Dviews(@ApiParam(name = "page") @QueryParam("page") @DefaultValue("1") int page,
                                                    @ApiParam(name = "per_page") @QueryParam("per_page") @DefaultValue("50") int perPage,
                                                    @ApiParam(name = "sort",
-                                                      value = "The field to sort the result on",
-                                                      required = true,
-                                                      allowableValues = "id,title,created_at") @DefaultValue(ViewDTO.FIELD_TITLE) @QueryParam("sort") String sortField,
-                                                   @ApiParam(name = "order", value = "The sort direction", allowableValues = "asc, desc") @DefaultValue("asc") @QueryParam("order") String order,
+                                                             value = "The field to sort the result on",
+                                                             required = true,
+                                                             allowableValues = "id,title,created_at") @DefaultValue(DEFAULT_SORT_FIELD) @QueryParam("sort") String sortField,
+                                                   @ApiParam(name = "order", value = "The sort direction", allowableValues = "asc, desc") @DefaultValue(DEFAULT_SORT_DIRECTION) @QueryParam("order") String order,
                                                    @ApiParam(name = "query") @QueryParam("query") String query,
                                                    @Context SearchUser searchUser) {
 
@@ -94,7 +110,7 @@ public class DashboardsResource extends RestResource {
                     page,
                     perPage);
 
-            return PaginatedResponse.create("views", result, query);
+            return PageListResponse.create(query, result.pagination(), result.pagination().total(), sortField, order, result, viewSummaryDtoAttributes, settings);
         } catch (IllegalArgumentException e) {
             throw new BadRequestException(e.getMessage(), e);
         }
