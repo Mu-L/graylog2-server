@@ -16,7 +16,6 @@
  */
 import * as React from 'react';
 import { useState } from 'react';
-import PropTypes from 'prop-types';
 import cloneDeep from 'lodash/cloneDeep';
 import get from 'lodash/get';
 import omit from 'lodash/omit';
@@ -28,9 +27,6 @@ import HoverForHelp from 'components/common/HoverForHelp';
 
 import FieldForm from './FieldForm';
 import FieldsList from './FieldsList';
-
-// Import built-in Field Value Providers
-import './field-value-providers';
 
 import type { EventDefinition } from '../event-definitions-types';
 import commonStyles from '../common/commonStyles.css';
@@ -155,13 +151,6 @@ const FieldsForm = ({ currentUser, eventDefinition, validation, onChange, canEdi
       </Col>
     </Row>
   );
-};
-
-FieldsForm.propTypes = {
-  currentUser: PropTypes.object.isRequired,
-  eventDefinition: PropTypes.object.isRequired,
-  validation: PropTypes.object.isRequired,
-  onChange: PropTypes.func.isRequired,
 };
 
 export default FieldsForm;

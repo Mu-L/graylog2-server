@@ -15,14 +15,13 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import React, { useCallback, useState } from 'react';
-import PropTypes from 'prop-types';
 import styled from 'styled-components';
 
 import AppConfig from 'util/AppConfig';
 import { Icon } from 'components/common';
 import { Button } from 'components/bootstrap';
 import ErrorPage from 'components/errors/ErrorPage';
-import SupportSources from 'components/support/SupportSources';
+import { SupportSources } from 'components/support';
 import ClipboardButton from 'components/common/ClipboardButton';
 
 const ToggleDetails = styled.div`
@@ -79,14 +78,6 @@ const RuntimeErrorPage = ({ error, componentStack }: Props) => {
       </dl>
     </ErrorPage>
   );
-};
-
-RuntimeErrorPage.propTypes = {
-  error: PropTypes.shape({
-    message: PropTypes.string.isRequired,
-    stack: PropTypes.string,
-  }).isRequired,
-  componentStack: PropTypes.string.isRequired,
 };
 
 export default RuntimeErrorPage;

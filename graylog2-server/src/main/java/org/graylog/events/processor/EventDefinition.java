@@ -23,11 +23,14 @@ import org.graylog.events.fields.EventFieldSpec;
 import org.graylog.events.notifications.EventNotificationHandler;
 import org.graylog.events.notifications.EventNotificationSettings;
 import org.graylog.events.processor.storage.EventStorageHandler;
+import org.graylog2.database.DbEntity;
+import org.graylog2.shared.security.RestPermissions;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 import java.util.Set;
 
+@DbEntity(readPermission = RestPermissions.EVENT_DEFINITIONS_READ, collection = DBEventDefinitionService.COLLECTION_NAME)
 public interface EventDefinition {
     enum State {
         ENABLED,
@@ -40,6 +43,10 @@ public interface EventDefinition {
     String title();
 
     String description();
+
+    default String remediationSteps() {
+        return null;
+    }
 
     @Nullable
     DateTime updatedAt();
@@ -67,5 +74,9 @@ public interface EventDefinition {
 
     default Set<String> requiredPermissions() {
         return config().requiredPermissions();
+    }
+
+    default String eventProcedureId() {
+        return null;
     }
 }

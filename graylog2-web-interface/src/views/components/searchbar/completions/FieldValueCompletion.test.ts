@@ -15,6 +15,7 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import { SearchSuggestions } from '@graylog/server-api';
+
 import asMock from 'helpers/mocking/AsMock';
 import FieldTypeMapping from 'views/logic/fieldtypes/FieldTypeMapping';
 import FieldType, { Properties } from 'views/logic/fieldtypes/FieldType';
@@ -124,6 +125,41 @@ describe('FieldValueCompletion', () => {
         prefix: 'P',
         tokens: [prevToken, currentToken],
         currentTokenIdx: 1,
+      });
+
+      expect(suggestions).toEqual(expectedSuggestions);
+    });
+
+    it('returns suggestions for field name which is in the middle of the query', async () => {
+      const currentToken = createCurrentToken('keyword', 'http_method:', 2, 8);
+      const prevToken = {
+        type: 'text',
+        value: ' ',
+      };
+
+      const completer = new FieldValueCompletion();
+
+      const suggestions = await completer.getCompletions({
+        ...requestDefaults,
+        currentToken,
+        prevToken,
+        tokens: [
+          {
+            type: 'term',
+            value: 'example',
+          },
+          prevToken,
+          currentToken,
+          {
+            type: 'text',
+            value: ' ',
+          },
+          {
+            type: 'term',
+            value: 'query',
+          },
+        ],
+        currentTokenIdx: 2,
       });
 
       expect(suggestions).toEqual(expectedSuggestions);

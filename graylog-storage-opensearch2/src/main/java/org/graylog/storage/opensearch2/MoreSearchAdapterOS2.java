@@ -32,6 +32,8 @@ import org.graylog.shaded.opensearch2.org.opensearch.core.xcontent.ToXContent;
 import org.graylog.shaded.opensearch2.org.opensearch.index.query.BoolQueryBuilder;
 import org.graylog.shaded.opensearch2.org.opensearch.index.query.QueryBuilder;
 import org.graylog.shaded.opensearch2.org.opensearch.search.builder.SearchSourceBuilder;
+import org.graylog.shaded.opensearch2.org.opensearch.search.sort.FieldSortBuilder;
+import org.graylog.shaded.opensearch2.org.opensearch.search.sort.SortOrder;
 import org.graylog2.indexer.results.ChunkedResult;
 import org.graylog2.indexer.results.MultiChunkResultRetriever;
 import org.graylog2.indexer.results.ResultChunk;
@@ -66,16 +68,19 @@ public class MoreSearchAdapterOS2 implements MoreSearchAdapter {
     private final Boolean allowLeadingWildcard;
     private final SortOrderMapper sortOrderMapper;
     private final MultiChunkResultRetriever multiChunkResultRetriever;
+    private final OS2ResultMessageFactory resultMessageFactory;
 
     @Inject
     public MoreSearchAdapterOS2(OpenSearchClient client,
                                 @Named("allow_leading_wildcard_searches") Boolean allowLeadingWildcard,
                                 SortOrderMapper sortOrderMapper,
-                                MultiChunkResultRetriever multiChunkResultRetriever) {
+                                MultiChunkResultRetriever multiChunkResultRetriever,
+                                OS2ResultMessageFactory resultMessageFactory) {
         this.client = client;
         this.allowLeadingWildcard = allowLeadingWildcard;
         this.sortOrderMapper = sortOrderMapper;
         this.multiChunkResultRetriever = multiChunkResultRetriever;
+        this.resultMessageFactory = resultMessageFactory;
     }
 
     @Override
@@ -105,8 +110,9 @@ public class MoreSearchAdapterOS2 implements MoreSearchAdapter {
                 .query(filter)
                 .from((page - 1) * perPage)
                 .size(perPage)
-                .sort(sorting.getField(), sortOrderMapper.fromSorting(sorting))
                 .trackTotalHits(true);
+        final var sortBuilders = createSorting(sorting);
+        sortBuilders.forEach(searchSourceBuilder::sort);
 
         final Set<String> indices = affectedIndices.isEmpty() ? Collections.singleton("") : affectedIndices;
         final SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0]))
@@ -121,7 +127,7 @@ public class MoreSearchAdapterOS2 implements MoreSearchAdapter {
         final SearchResponse searchResult = client.search(searchRequest, "Unable to perform search query");
 
         final List<ResultMessage> hits = Streams.stream(searchResult.getHits())
-                .map(ResultMessageFactory::fromSearchHit)
+                .map(resultMessageFactory::fromSearchHit)
                 .collect(Collectors.toList());
 
         final long total = searchResult.getHits().getTotalHits().value;
@@ -133,6 +139,27 @@ public class MoreSearchAdapterOS2 implements MoreSearchAdapter {
                 .usedIndexNames(affectedIndices)
                 .executedQuery(searchSourceBuilder.toString())
                 .build();
+    }
+
+    private List<FieldSortBuilder> createSorting(Sorting sorting) {
+        final SortOrder order = sortOrderMapper.fromSorting(sorting);
+        final List<FieldSortBuilder> sortBuilders;
+        if (EventDto.FIELD_TIMERANGE_START.equals(sorting.getField())) {
+            sortBuilders = List.of(
+                    new FieldSortBuilder(EventDto.FIELD_TIMERANGE_START),
+                    new FieldSortBuilder(EventDto.FIELD_TIMERANGE_END)
+            );
+        } else {
+            sortBuilders = List.of(new FieldSortBuilder(sorting.getField()));
+        }
+        return sortBuilders.stream()
+                .map(sortBuilder -> {
+                    sorting.getUnmappedType().ifPresent(unmappedType -> sortBuilder
+                            .unmappedType(unmappedType)
+                            .missing(order.equals(SortOrder.ASC) ? "_first" : "_last"));
+                    return sortBuilder.order(order);
+                })
+                .toList();
     }
 
     @Override

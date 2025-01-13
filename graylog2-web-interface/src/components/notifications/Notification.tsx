@@ -15,7 +15,6 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import * as React from 'react';
-import PropTypes from 'prop-types';
 import styled, { css } from 'styled-components';
 import DOMPurify from 'dompurify';
 
@@ -67,7 +66,7 @@ const Notification = ({ notification }: Props) => {
     <StyledAlert bsStyle="danger"
                  title={(
                    <>
-                     <div dangerouslySetInnerHTML={{__html: _sanitizeDescription(message?.title)}} />
+                     <div dangerouslySetInnerHTML={{ __html: _sanitizeDescription(message?.title) }} />
                      <NotificationTimestamp>
                        (triggered <RelativeTime dateTime={notification.timestamp} />)
                      </NotificationTimestamp>
@@ -78,17 +77,6 @@ const Notification = ({ notification }: Props) => {
            className="notification-description" />
     </StyledAlert>
   );
-};
-
-Notification.propTypes = {
-  notification: PropTypes.exact({
-    severity: PropTypes.string.isRequired,
-    details: PropTypes.object,
-    type: PropTypes.string.isRequired,
-    key: PropTypes.string,
-    timestamp: PropTypes.string.isRequired,
-    node_id: PropTypes.string.isRequired,
-  }).isRequired,
 };
 
 export default Notification;

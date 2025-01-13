@@ -25,7 +25,7 @@ import useActiveQueryId from 'views/hooks/useActiveQueryId';
 import useViewTitle from 'views/hooks/useViewTitle';
 import useViewMetadata from 'views/hooks/useViewMetadata';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import useGlobalOverride from 'views/hooks/useGlobalOverride';
 import GlobalOverride from 'views/logic/search/GlobalOverride';
 
@@ -39,6 +39,7 @@ jest.mock('util/AppConfig', () => ({
   isFeatureEnabled: jest.fn(() => false),
 }));
 
+jest.mock('hooks/useHotkey', () => jest.fn());
 jest.mock('views/hooks/useViewType');
 jest.mock('views/hooks/useActiveQueryId');
 jest.mock('views/hooks/useViewTitle');
@@ -79,15 +80,13 @@ describe('<Sidebar />', () => {
 
   const renderSidebar = () => render(
     <TestStoreProvider>
-      <Sidebar results={queryResult}>
+      <Sidebar results={queryResult} title="Sidebar Title">
         <TestComponent />
       </Sidebar>
     </TestStoreProvider>,
   );
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   beforeEach(() => {
     asMock(useViewType).mockReturnValue(View.Type.Search);
@@ -228,7 +227,7 @@ describe('<Sidebar />', () => {
 
     await screen.findByText('Execution');
 
-    fireEvent.click(await screen.findByText('Query Title'));
+    fireEvent.click(await screen.findByText('Sidebar Title'));
 
     expect(screen.queryByText('Execution')).toBeNull();
   });

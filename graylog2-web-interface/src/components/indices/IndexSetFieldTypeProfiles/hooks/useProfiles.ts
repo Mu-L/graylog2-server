@@ -16,7 +16,6 @@
  */
 import { useQuery } from '@tanstack/react-query';
 
-import UserNotification from 'util/UserNotification';
 import fetch from 'logic/rest/FetchProvider';
 import { qualifyUrl } from 'util/URLUtils';
 import type { Attribute, SearchParams } from 'stores/PaginationTypes';
@@ -26,6 +25,7 @@ import type {
   IndexSetFieldTypeProfileJson,
   IndexSetFieldTypeProfile,
 } from 'components/indices/IndexSetFieldTypeProfiles/types';
+import { defaultOnError } from 'util/conditional/onError';
 
 const INITIAL_DATA = {
   pagination: { total: 0 },
@@ -33,7 +33,9 @@ const INITIAL_DATA = {
   attributes: [],
 };
 
-const fetchIndexSetFieldTypeProfiles = async (searchParams: SearchParams) => {
+export const keyFn = (searchParams: SearchParams) => (['indexSetFieldTypeProfiles', searchParams]);
+
+export const fetchIndexSetFieldTypeProfiles = async (searchParams: SearchParams) => {
   const indexSetFieldTypeUrl = qualifyUrl('/system/indices/index_sets/profiles/paginated');
   const url = PaginationURL(
     indexSetFieldTypeUrl,
@@ -72,13 +74,9 @@ const useProfiles = (searchParams: SearchParams, { enabled }): {
   refetch: () => void,
 } => {
   const { data, isLoading, refetch } = useQuery(
-    ['indexSetFieldTypeProfiles', searchParams],
-    () => fetchIndexSetFieldTypeProfiles(searchParams),
+    keyFn(searchParams),
+    () => defaultOnError(fetchIndexSetFieldTypeProfiles(searchParams), 'Loading index field type profiles failed with status', 'Could not load index field type profiles'),
     {
-      onError: (errorThrown) => {
-        UserNotification.error(`Loading index field type profiles failed with status: ${errorThrown}`,
-          'Could not load index field type profiles');
-      },
       keepPreviousData: true,
       enabled,
     },

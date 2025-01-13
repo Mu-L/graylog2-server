@@ -17,7 +17,7 @@
 import * as React from 'react';
 import * as Immutable from 'immutable';
 import { render, fireEvent, waitFor, screen } from 'wrappedTestingLibrary';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import selectEvent from 'react-select-event';
 
 import asMock from 'helpers/mocking/AsMock';
@@ -176,7 +176,10 @@ describe('EntityShareModal', () => {
         await act(async () => { await selectEvent.select(capabilitySelect, capability.title); });
 
         // Submit form
-        const submitButton = await screen.findByText('Add Collaborator');
+        const submitButton = await screen.findByRole('button', {
+          name: /add collaborator/i,
+          hidden: true,
+        });
 
         fireEvent.click(submitButton);
 

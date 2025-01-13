@@ -20,12 +20,11 @@ import { Field } from 'formik';
 import moment from 'moment';
 import styled, { css } from 'styled-components';
 
-import { useStore } from 'stores/connect';
-import RefreshControls from 'views/components/searchbar/RefreshControls';
+import ViewsRefreshControls from 'views/components/searchbar/ViewsRefreshControls';
 import { Spinner } from 'components/common';
 import ScrollToHint from 'views/components/common/ScrollToHint';
 import SearchButton from 'views/components/searchbar/SearchButton';
-import QueryInput from 'views/components/searchbar/queryinput/AsyncQueryInput';
+import ViewsQueryInput from 'views/components/searchbar/ViewsQueryInput';
 import DashboardActionsMenu from 'views/components/DashboardActionsMenu';
 import WidgetFocusContext from 'views/components/contexts/WidgetFocusContext';
 import QueryValidation from 'views/components/searchbar/queryvalidation/QueryValidation';
@@ -43,7 +42,6 @@ import {
 } from 'views/logic/searchbar/pluggableSearchBarControlsHandler';
 import type { SearchBarControl, HandlerContext } from 'views/types';
 import usePluginEntities from 'hooks/usePluginEntities';
-import { SearchConfigStore } from 'views/stores/SearchConfigStore';
 import useUserDateTime from 'hooks/useUserDateTime';
 import {
   SEARCH_BAR_GAP,
@@ -62,6 +60,8 @@ import QueryHistoryButton from 'views/components/searchbar/QueryHistoryButton';
 import type { Editor } from 'views/components/searchbar/queryinput/ace-types';
 import useView from 'views/hooks/useView';
 import useIsLoading from 'views/hooks/useIsLoading';
+import useSearchConfiguration from 'hooks/useSearchConfiguration';
+import useAutoRefresh from 'views/hooks/useAutoRefresh';
 
 import TimeRangeFilter from './searchbar/time-range-filter';
 import type { DashboardFormValues } from './DashboardSearchBarForm';
@@ -110,19 +110,20 @@ const DashboardSearchBar = () => {
   const editorRef = useRef<Editor>(null);
   const view = useView();
   const { userTimezone } = useUserDateTime();
-  const { searchesClusterConfig: config } = useStore(SearchConfigStore);
+  const { config } = useSearchConfiguration();
   const { timerange, query: { query_string: queryString = '' } = {} } = useGlobalOverride() ?? {};
   const pluggableSearchBarControls = usePluginEntities('views.components.searchBar');
   const dispatch = useAppDispatch();
   const handlerContext = useHandlerContext();
-
+  const { restartAutoRefresh } = useAutoRefresh();
   const submitForm = useCallback(async (values) => {
     const { timerange: newTimerange, queryString: newQueryString } = values;
+    restartAutoRefresh();
     await executePluggableSubmitHandler(dispatch, values, pluggableSearchBarControls);
 
     dispatch(setGlobalOverride(newQueryString, newTimerange));
     dispatch(execute());
-  }, [dispatch, pluggableSearchBarControls]);
+  }, [dispatch, pluggableSearchBarControls, restartAutoRefresh]);
 
   const { parameters } = useParameters();
   const initialValues = useInitialFormValues(timerange, queryString);
@@ -155,7 +156,7 @@ const DashboardSearchBar = () => {
                                              limitDuration={limitDuration}
                                              hasErrorOnMount={!!errors.timerange}
                                              noOverride />
-                      <RefreshControls />
+                      <ViewsRefreshControls disable={!isValid} />
                     </TimeRangeRow>
 
                     <SearchQueryRow>
@@ -171,20 +172,20 @@ const DashboardSearchBar = () => {
                                 {({ warnings }) => (
                                   <PluggableCommands usage="global_override_query">
                                     {(customCommands) => (
-                                      <QueryInput value={value}
-                                                  view={view}
-                                                  timeRange={values?.timerange}
-                                                  placeholder="Apply filter to all widgets"
-                                                  name={name}
-                                                  onChange={onChange}
-                                                  disableExecution={disableSearchSubmit}
-                                                  error={error}
-                                                  isValidating={isValidating}
-                                                  validate={validateForm}
-                                                  warning={warnings.queryString}
-                                                  ref={editorRef}
-                                                  onExecute={handleSubmit as () => void}
-                                                  commands={customCommands} />
+                                      <ViewsQueryInput value={value}
+                                                       view={view}
+                                                       timeRange={values?.timerange}
+                                                       placeholder="Apply filter to all widgets"
+                                                       name={name}
+                                                       onChange={onChange}
+                                                       disableExecution={disableSearchSubmit}
+                                                       error={error}
+                                                       isValidating={isValidating}
+                                                       validate={validateForm}
+                                                       warning={warnings.queryString}
+                                                       ref={editorRef}
+                                                       onExecute={handleSubmit as () => void}
+                                                       commands={customCommands} />
                                     )}
                                   </PluggableCommands>
                                 )}

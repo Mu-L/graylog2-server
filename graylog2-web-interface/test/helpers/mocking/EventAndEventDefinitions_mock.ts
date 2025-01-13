@@ -17,7 +17,7 @@
 import Immutable from 'immutable';
 
 import type { Event } from 'components/events/events/types';
-import type { EventDefinition } from 'logic/alerts/types';
+import type { EventDefinition } from 'components/event-definitions/event-definitions-types';
 import type { EventDefinitionAggregation } from 'hooks/useEventDefinition';
 import QueryGenerator from 'views/logic/queries/QueryGenerator';
 import Search from 'views/logic/search/Search';
@@ -50,6 +50,9 @@ export const mockEventData = {
     streams: [
       '002',
     ],
+    stream_categories: [
+      'firewall',
+    ],
     source_streams: [
       '001',
     ],
@@ -57,14 +60,17 @@ export const mockEventData = {
     source: '',
     key_tuple: [],
     key: null,
-    priority: '2',
-    fields: [{}],
+    priority: 2,
+    fields: {},
     replay_info: {
       timerange_start: '2023-03-02T13:42:21.266Z',
       timerange_end: '2023-03-02T13:43:21.266Z',
       query: 'http_method: GET',
       streams: [
         '001',
+      ],
+      stream_categories: [
+        'firewall',
       ],
     },
     group_by_fields: { field4: 'value4' },
@@ -81,11 +87,16 @@ export const mockEventDefinitionTwoAggregations:EventDefinition = {
   priority: 2,
   alert: true,
   config: {
+    event_limit: 1000,
     type: 'aggregation-v1',
     query: 'http_method: GET',
     query_parameters: [],
+    _is_scheduled: true,
     streams: [
       '001',
+    ],
+    stream_categories: [
+      'firewall',
     ],
     group_by: [
       'field1',
@@ -212,7 +223,7 @@ export const mockedMappedAggregationNoField: Array<EventDefinitionAggregation> =
   },
 ];
 const eventData = mockEventData.event;
-const query = QueryGenerator(eventData.replay_info.streams, 'query-id', {
+const query = QueryGenerator(eventData.replay_info.streams, eventData.replay_info.stream_categories, 'query-id', {
   type: 'absolute',
   from: eventData?.replay_info?.timerange_start,
   to: eventData?.replay_info?.timerange_end,
@@ -306,6 +317,11 @@ const searchTwoAggregations = Search.create().toBuilder().id('search-id').querie
     .toBuilder()
     .searchTypes(Array(5).fill({
       filters: [],
+      id: undefined,
+      query: undefined,
+      stream_categories: undefined,
+      streams: undefined,
+      timerange: undefined,
       type: 'AGGREGATION',
       typeDefinition: {},
     })).build()])
@@ -414,7 +430,7 @@ export const mockedViewWithOneAggregationNoField = View.create()
   .search(searchOneAggregation)
   .build();
 
-const queryED = QueryGenerator(eventData.replay_info.streams, 'query-id', {
+const queryED = QueryGenerator(eventData.replay_info.streams, eventData.replay_info.stream_categories, 'query-id', {
   type: 'relative',
   range: 60,
 }, {

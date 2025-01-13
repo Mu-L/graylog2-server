@@ -18,10 +18,12 @@ package org.graylog.integrations.aws.codecs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.assistedinject.Assisted;
+import jakarta.inject.Inject;
 import org.graylog.integrations.aws.cloudwatch.FlowLogMessage;
 import org.graylog.integrations.aws.cloudwatch.IANAProtocolNumbers;
 import org.graylog.integrations.aws.cloudwatch.KinesisLogEntry;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.MessageFactory;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.configuration.ConfigurationRequest;
 import org.graylog2.plugin.inputs.annotations.ConfigClass;
@@ -31,12 +33,9 @@ import org.graylog2.plugin.inputs.codecs.Codec;
 import org.joda.time.Seconds;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
-
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 public class KinesisCloudWatchFlowLogCodec extends AbstractKinesisCodec {
     public static final String NAME = "FlowLog";
@@ -58,26 +57,23 @@ public class KinesisCloudWatchFlowLogCodec extends AbstractKinesisCodec {
 
     private final IANAProtocolNumbers protocolNumbers;
     private final boolean noFlowLogPrefix;
+    private final MessageFactory messageFactory;
 
     @Inject
-    public KinesisCloudWatchFlowLogCodec(@Assisted Configuration configuration, ObjectMapper objectMapper) {
+    public KinesisCloudWatchFlowLogCodec(@Assisted Configuration configuration, ObjectMapper objectMapper, MessageFactory messageFactory) {
         super(configuration, objectMapper);
+        this.messageFactory = messageFactory;
         this.protocolNumbers = new IANAProtocolNumbers();
         this.noFlowLogPrefix = configuration.getBoolean(AWSCodec.CK_FLOW_LOG_PREFIX, AWSCodec.FLOW_LOG_PREFIX_DEFAULT);
     }
 
-    @Nullable
     @Override
-    public Message decodeLogData(@Nonnull final KinesisLogEntry logEvent) {
+    public Optional<Message> decodeLogData(@Nonnull final KinesisLogEntry logEvent) {
         try {
             final FlowLogMessage flowLogMessage = FlowLogMessage.fromLogEvent(logEvent);
 
-            if (flowLogMessage == null) {
-                return null;
-            }
-
             final String source = configuration.getString(KinesisCloudWatchFlowLogCodec.Config.CK_OVERRIDE_SOURCE, SOURCE);
-            final Message result = new Message(
+            final Message result = messageFactory.createMessage(
                     buildSummary(flowLogMessage),
                     source,
                     flowLogMessage.getTimestamp());
@@ -87,7 +83,7 @@ public class KinesisCloudWatchFlowLogCodec extends AbstractKinesisCodec {
             result.addField(FIELD_LOG_STREAM, logEvent.logStream());
             result.addField(SOURCE_GROUP_IDENTIFIER, true);
 
-            return result;
+            return Optional.of(result);
         } catch (Exception e) {
             throw new RuntimeException("Could not deserialize AWS FlowLog record.", e);
         }

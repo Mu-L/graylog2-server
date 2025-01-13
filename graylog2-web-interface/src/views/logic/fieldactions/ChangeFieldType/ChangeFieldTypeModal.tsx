@@ -18,7 +18,7 @@ import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import mapValues from 'lodash/mapValues';
 
-import { Badge, BootstrapModalForm, Alert, Input } from 'components/bootstrap';
+import { BootstrapModalForm, Alert, Input } from 'components/bootstrap';
 import { Select, Spinner } from 'components/common';
 import StreamLink from 'components/streams/StreamLink';
 import IndexSetsTable from 'views/logic/fieldactions/ChangeFieldType/IndexSetsTable';
@@ -39,6 +39,7 @@ import type {
 } from 'views/logic/fieldactions/ChangeFieldType/types';
 import { Link } from 'components/common/router';
 import Routes from 'routing/Routes';
+import type { Stream } from 'logic/streams/types';
 
 const StyledSelect = styled(Select)`
   width: 400px;
@@ -49,8 +50,6 @@ const StyledLabel = styled.h5`
   font-weight: bold;
   margin-bottom: 5px;
 `;
-
-const BetaBadge = () => <Badge bsStyle="danger">Beta Feature</Badge>;
 
 const failureStreamId = '000000000000000000000004';
 
@@ -64,7 +63,8 @@ type Props = {
   initialData?: {
     type?: string,
     fieldName?: string
-  }
+  },
+  initialSelectionDataLoaded?: boolean,
 }
 
 const FailureStreamLink = () => {
@@ -73,7 +73,7 @@ const FailureStreamLink = () => {
 
   return (
     <span>
-      <StreamLink stream={isErrorFailureStream ? { id: failureStreamId, title: 'Processing and Indexing Failures' } : failureStream} />
+      <StreamLink stream={isErrorFailureStream ? { id: failureStreamId, title: 'Processing and Indexing Failures' } as Stream : failureStream} />
       <i> (<Link to={Routes.SYSTEM.ENTERPRISE}>Enterprise Plugin</Link> required)</i>
     </span>
   );
@@ -84,9 +84,10 @@ const ChangeFieldTypeModal = ({
   onSubmitCallback,
   initialSelectedIndexSets,
   onClose,
-  showSelectionTable,
-  showFieldSelect,
-  initialData,
+  showSelectionTable = true,
+  showFieldSelect = false,
+  initialData = { fieldName: undefined, type: undefined },
+  initialSelectionDataLoaded = true,
 }: Props) => {
   const [{ fieldName, type }, setModalData] = useState<{ fieldName?: string, type?: string }>(initialData);
   const { data: { fieldTypes }, isLoading: isLoadingFieldTypes } = useFieldTypesForMappings();
@@ -156,7 +157,7 @@ const ChangeFieldTypeModal = ({
   }, [initialSelectedIndexSets, setIndexSetSelection]);
 
   return (
-    <BootstrapModalForm title={<span>Change {fieldName} Field Type <BetaBadge /></span>}
+    <BootstrapModalForm title={<span>Change {fieldName} Field Type</span>}
                         submitButtonText={fieldTypeMutationIsLading ? 'Changing field type...' : 'Change field type'}
                         onSubmitForm={onSubmit}
                         onCancel={onCancel}
@@ -183,11 +184,10 @@ const ChangeFieldTypeModal = ({
                         onChange={onChangeFieldType}
                         placeholder="Select field type"
                         disabled={isLoadingFieldTypes}
-                        inputProps={{ 'aria-label': 'Select Field Type For Field' }}
+                        aria-label="Select Field Type For Field"
                         required />
         </Input>
-        {
-          showSelectionTable && (
+        {showSelectionTable && initialSelectionDataLoaded && (
           <>
             <StyledLabel>Select Targeted Index Sets</StyledLabel>
             <p>
@@ -195,8 +195,7 @@ const ChangeFieldTypeModal = ({
             </p>
             <IndexSetsTable field={fieldName} setIndexSetSelection={setIndexSetSelection} fieldTypes={fieldTypes} initialSelection={initialSelectedIndexSets} />
           </>
-          )
-        }
+        )}
         <StyledLabel>Select Rotation Strategy</StyledLabel>
         <p>
           To see and use the {type ? <b>{type}</b> : 'selected field type'} as a field type{fieldName ? <> for <b>{fieldName}</b></> : ''}, you have to rotate indices. You can automatically rotate affected indices after submitting this form or do that manually later.
@@ -210,13 +209,6 @@ const ChangeFieldTypeModal = ({
       </div>
     </BootstrapModalForm>
   );
-};
-
-ChangeFieldTypeModal.defaultProps = {
-  showSelectionTable: true,
-  onSubmitCallback: undefined,
-  showFieldSelect: false,
-  initialData: { fieldName: undefined, type: undefined },
 };
 
 export default ChangeFieldTypeModal;

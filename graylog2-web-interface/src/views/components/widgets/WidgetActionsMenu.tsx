@@ -31,7 +31,7 @@ import View from 'views/logic/views/View';
 import Search from 'views/logic/search/Search';
 import CopyWidgetToDashboard from 'views/logic/views/CopyWidgetToDashboard';
 import IfSearch from 'views/components/search/IfSearch';
-import { MenuItem } from 'components/bootstrap';
+import { MenuItem, DeleteMenuItem } from 'components/bootstrap';
 import type Widget from 'views/logic/widgets/Widget';
 import iterateConfirmationHooks from 'views/hooks/IterateConfirmationHooks';
 import DrilldownContext from 'views/components/contexts/DrilldownContext';
@@ -49,9 +49,10 @@ import useLocation from 'routing/useLocation';
 import useParameters from 'views/hooks/useParameters';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
 import ExtractWidgetIntoNewView from 'views/logic/views/ExtractWidgetIntoNewView';
+import ExtraMenuWidgetActions from 'views/components/widgets/ExtraMenuWidgetActions';
 
 import ReplaySearchButton from './ReplaySearchButton';
-import ExtraWidgetActions from './ExtraWidgetActions';
+import ExtraDropdownWidgetActions from './ExtraDropdownWidgetActions';
 import CopyToDashboard from './CopyToDashboardForm';
 import MoveWidgetToTabModal from './MoveWidgetToTabModal';
 import WidgetActionDropdown from './WidgetActionDropdown';
@@ -154,7 +155,7 @@ const WidgetActionsMenu = ({
 }: Props) => {
   const widget = useContext(WidgetContext);
   const view = useView();
-  const { query, timerange, streams } = useContext(DrilldownContext);
+  const { query, timerange, streams, streamCategories } = useContext(DrilldownContext);
   const { setWidgetFocusing, unsetWidgetFocusing } = useContext(WidgetFocusContext);
   const [showCopyToDashboard, setShowCopyToDashboard] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -229,9 +230,11 @@ const WidgetActionsMenu = ({
           <ReplaySearchButton queryString={query.query_string}
                               timerange={timerange}
                               streams={streams}
+                              streamCategories={streamCategories}
                               parameterBindings={parameterBindings}
                               parameters={parameters} />
         </IfDashboard>
+        <ExtraMenuWidgetActions widget={widget} />
         {isFocused && (
           <IconButton name="fullscreen_exit"
                       title="Un-focus widget"
@@ -263,17 +266,14 @@ const WidgetActionsMenu = ({
               Copy to Dashboard
             </MenuItem>
           </IfSearch>
-          {widget.isExportable && <MenuItem onSelect={() => setShowExport(true)}>Export</MenuItem>}
           <IfDashboard>
             <MenuItem onSelect={() => setShowMoveWidgetToTab(true)}>
               Move to Page
             </MenuItem>
           </IfDashboard>
-          <ExtraWidgetActions widget={widget} />
+          <ExtraDropdownWidgetActions widget={widget} />
           <MenuItem divider />
-          <MenuItem onSelect={onDelete}>
-            Delete
-          </MenuItem>
+          <DeleteMenuItem onSelect={onDelete} />
         </WidgetActionDropdown>
 
         {showCopyToDashboard && (

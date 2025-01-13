@@ -23,11 +23,13 @@ import Immutable from 'immutable';
 
 import { asMock } from 'helpers/mocking';
 import { ViewManagementActions } from 'views/stores/ViewManagementStore';
-import DashboardActions from 'views/components/dashboard/DashboardsOverview/DashboardActions';
+import OriginalDashboardActions from 'views/components/dashboard/DashboardsOverview/DashboardActions';
 import { simpleView } from 'views/test/ViewFixtures';
 import useCurrentUser from 'hooks/useCurrentUser';
 import { adminUser } from 'fixtures/users';
 import useSelectedEntities from 'components/common/EntityDataTable/hooks/useSelectedEntities';
+import type { ContextValue } from 'components/common/PaginatedEntityTable/TableFetchContext';
+import TableFetchContext from 'components/common/PaginatedEntityTable/TableFetchContext';
 
 jest.mock('hooks/useCurrentUser');
 jest.mock('components/common/EntityDataTable/hooks/useSelectedEntities');
@@ -38,6 +40,24 @@ jest.mock('views/stores/ViewManagementStore', () => ({
   },
 }));
 
+const mockSearchParams = {
+  page: 1,
+  pageSize: 10,
+  query: '',
+  sort: {
+    attributeId: 'name',
+    direction: 'asc',
+  },
+} as const;
+
+const mockContextValue = { searchParams: mockSearchParams, refetch: jest.fn(), attributes: [] };
+
+const DashboardActions = ({ contextValue, ...props }: React.ComponentProps<typeof OriginalDashboardActions> & { contextValue?: ContextValue }) => (
+  <TableFetchContext.Provider value={contextValue ?? mockContextValue}>
+    <OriginalDashboardActions {...props} />
+  </TableFetchContext.Provider>
+);
+
 describe('DashboardActions', () => {
   let oldWindowConfirm;
 
@@ -46,7 +66,7 @@ describe('DashboardActions', () => {
 
   const clickDashboardAction = async (action: string) => {
     userEvent.click(await screen.findByRole('button', { name: /more/i }));
-    userEvent.click(await screen.findByRole('button', { name: action }));
+    userEvent.click(await screen.findByRole('menuitem', { name: action }));
     await waitFor(() => menuIsHidden());
   };
 
@@ -60,6 +80,7 @@ describe('DashboardActions', () => {
       setSelectedEntities: () => {},
       selectEntity: () => {},
       deselectEntity: () => {},
+      toggleEntitySelect: () => {},
     });
   });
 
@@ -70,7 +91,7 @@ describe('DashboardActions', () => {
   it('does not delete dashboard when user clicks cancel', async () => {
     asMock(window.confirm).mockReturnValue(false);
 
-    render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+    render(<DashboardActions dashboard={simpleDashboard} />);
 
     await clickDashboardAction('Delete');
 
@@ -82,7 +103,7 @@ describe('DashboardActions', () => {
   it('deletes dashboard when user confirms deletion', async () => {
     asMock(window.confirm).mockReturnValue(true);
 
-    render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+    render(<DashboardActions dashboard={simpleDashboard} />);
 
     await clickDashboardAction('Delete');
 
@@ -95,7 +116,7 @@ describe('DashboardActions', () => {
     const currentUser = adminUser.toBuilder().permissions(Immutable.List([`view:read:${simpleDashboard.id}`])).build();
     asMock(useCurrentUser).mockReturnValue(currentUser);
 
-    render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+    render(<DashboardActions dashboard={simpleDashboard} />);
 
     await screen.findByRole('button', { name: /share/i });
 
@@ -122,7 +143,7 @@ describe('DashboardActions', () => {
     });
 
     it('triggers hook when deleting dashboard', async () => {
-      render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+      render(<DashboardActions dashboard={simpleDashboard} />);
 
       await clickDashboardAction('Delete');
 
@@ -131,10 +152,24 @@ describe('DashboardActions', () => {
       expect(deletingDashboard).toHaveBeenCalledWith(simpleDashboard);
     });
 
+    it('refreshes dashboard list after deletion', async () => {
+      const contextValue = {
+        ...mockContextValue,
+        refetch: jest.fn(),
+      };
+      render(<DashboardActions dashboard={simpleDashboard} contextValue={contextValue} />);
+
+      await clickDashboardAction('Delete');
+
+      await waitFor(() => expect(ViewManagementActions.delete).toHaveBeenCalledWith(expect.objectContaining({ id: 'foo' })));
+
+      expect(contextValue.refetch).toHaveBeenCalled();
+    });
+
     it('does not delete dashboard when hook returns false', async () => {
       asMock(deletingDashboard).mockResolvedValue(false);
 
-      render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+      render(<DashboardActions dashboard={simpleDashboard} />);
 
       await clickDashboardAction('Delete');
 
@@ -147,7 +182,7 @@ describe('DashboardActions', () => {
       asMock(deletingDashboard).mockReturnValue(null);
       asMock(window.confirm).mockReturnValue(true);
 
-      render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+      render(<DashboardActions dashboard={simpleDashboard} />);
 
       await clickDashboardAction('Delete');
 
@@ -163,7 +198,7 @@ describe('DashboardActions', () => {
       asMock(deletingDashboard).mockImplementation(() => { throw error; });
       asMock(window.confirm).mockReturnValue(true);
 
-      render(<DashboardActions dashboard={simpleDashboard} refetchDashboards={() => Promise.resolve()} />);
+      render(<DashboardActions dashboard={simpleDashboard} />);
 
       /* eslint-disable no-console */
       const oldConsoleTrace = console.trace;

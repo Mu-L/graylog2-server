@@ -20,14 +20,14 @@ import { render, screen } from 'wrappedTestingLibrary';
 import HighlightingRule from 'views/logic/views/formatting/highlighting/HighlightingRule';
 import { StaticColor } from 'views/logic/views/formatting/highlighting/HighlightingColor';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import { createSearch } from 'fixtures/searches';
 import FormattingSettings from 'views/logic/views/formatting/FormattingSettings';
 import HighlightingRulesProvider from 'views/components/contexts/HighlightingRulesProvider';
 
 import OriginalHighlightingRules from './HighlightingRules';
 
-const HighlightingRules = ({ rules }: { rules?: Array<HighlightingRule> }) => {
+const HighlightingRules = ({ rules = [] }: { rules?: Array<HighlightingRule> }) => {
   const formatting = FormattingSettings.create(rules);
   const defaultView = createSearch();
   const view = defaultView
@@ -38,20 +38,18 @@ const HighlightingRules = ({ rules }: { rules?: Array<HighlightingRule> }) => {
   return (
     <TestStoreProvider view={view}>
       <HighlightingRulesProvider>
-        <OriginalHighlightingRules />
+        <OriginalHighlightingRules description=""
+                                   onUpdateRules={() => Promise.resolve()}
+                                   onCreateRule={() => Promise.resolve()}
+                                   onUpdateRule={() => Promise.resolve()}
+                                   onDeleteRule={() => Promise.resolve()} />
       </HighlightingRulesProvider>
     </TestStoreProvider>
   );
 };
 
-HighlightingRules.defaultProps = {
-  rules: [],
-};
-
 describe('HighlightingRules', () => {
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   it('renders search term legend even when rules are empty', async () => {
     render(<HighlightingRules />);

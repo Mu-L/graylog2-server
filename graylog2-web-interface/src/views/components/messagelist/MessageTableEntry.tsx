@@ -15,8 +15,7 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import * as React from 'react';
-import { useContext, useMemo } from 'react';
-import PropTypes from 'prop-types';
+import { useCallback, useContext, useMemo } from 'react';
 import * as Immutable from 'immutable';
 import styled, { css } from 'styled-components';
 
@@ -32,9 +31,8 @@ import type MessagesWidgetConfig from 'views/logic/widgets/MessagesWidgetConfig'
 import { InputsStore } from 'stores/inputs/InputsStore';
 import useSendTelemetry from 'logic/telemetry/useSendTelemetry';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
-import { getPathnameWithoutId } from 'util/URLUtils';
-import useLocation from 'routing/useLocation';
 import { TableDataCell } from 'views/components/datatable';
+import { getPathnameWithoutId, currentPathnameWithoutPrefix } from 'util/URLUtils';
 
 import MessageDetail from './MessageDetail';
 import DecoratedValue from './decoration/DecoratedValue';
@@ -113,84 +111,82 @@ const fieldType = (fieldName, { decoration_stats: decorationStats }: {
   ? FieldType.Decorated
   : ((fields && fields.find((f) => f.name === fieldName)) || { type: FieldType.Unknown }).type);
 
-const _renderStrong = (children, strong = false) => {
-  if (strong) {
-    return <strong>{children}</strong>;
-  }
+const Strong = ({ children, strong = false }: React.PropsWithChildren<{ strong: boolean }>) => (strong
+  ? <strong>{children}</strong>
 
-  return children;
-};
+  : <>{children}</>);
 
 const MessageTableEntry = ({
   config,
-  disableSurroundingSearch,
+  disableSurroundingSearch = false,
   expandAllRenderAsync,
   expanded,
   fields,
   message,
-  showMessageRow,
+  showMessageRow = false,
   selectedFields = Immutable.OrderedSet<string>(),
   toggleDetail,
 }: Props) => {
   const { inputs: inputsList = [] } = useStore(InputsStore);
   const { streams: streamsList = [] } = useStore(StreamsStore);
   const highlightMessageId = useContext(HighlightMessageContext);
-  const location = useLocation();
   const sendTelemetry = useSendTelemetry();
   const additionalContextValue = useMemo(() => ({ message }), [message]);
-  const allStreams = Immutable.List<Stream>(streamsList);
-  const streams = Immutable.Map<string, Stream>(streamsList.map((stream) => [stream.id, stream]));
-  const inputs = Immutable.Map<string, Input>(inputsList.map((input) => [input.id, input]));
+  const allStreams = useMemo(() => Immutable.List<Stream>(streamsList), [streamsList]);
+  const streams = useMemo(() => Immutable.Map<string, Stream>(streamsList.map((stream) => [stream.id, stream])), [streamsList]);
+  const inputs = useMemo(() => Immutable.Map<string, Input>(inputsList.map((input) => [input.id, input])), [inputsList]);
 
-  const _toggleDetail = () => {
+  const _toggleDetail = useCallback(() => {
     const isSelectingText = !!window.getSelection()?.toString();
 
     if (!isSelectingText) {
       sendTelemetry(TELEMETRY_EVENT_TYPE.SEARCH_MESSAGE_TABLE_DETAILS_TOGGLED, {
-        app_pathname: getPathnameWithoutId(location.pathname),
+        app_pathname: getPathnameWithoutId(currentPathnameWithoutPrefix()),
         app_section: 'widget',
         app_action_value: 'widget-message-table-toggle-details',
       });
 
       toggleDetail(`${message.index}-${message.id}`);
     }
-  };
+  }, [message.id, message.index, sendTelemetry, toggleDetail]);
 
   const colSpanFixup = selectedFields.size + 1;
+
+  const selectedFieldsList = useMemo(() => selectedFields.toArray().map((selectedFieldName, idx) => {
+    const type = fieldType(selectedFieldName, message, fields);
+
+    return (
+      <TableDataCell className="table-data-cell" $isNumeric={type.isNumeric()} key={selectedFieldName} data-testid={`message-summary-field-${selectedFieldName}`}>
+        <Strong strong={idx === 0}>
+          <CustomHighlighting field={selectedFieldName} value={message.fields[selectedFieldName]}>
+            <TypeSpecificValue value={message.fields[selectedFieldName]}
+                               field={selectedFieldName}
+                               type={type}
+                               render={DecoratedValue} />
+          </CustomHighlighting>
+        </Strong>
+      </TableDataCell>
+    );
+  }), [fields, message, selectedFields]);
+
+  const messageFieldType = useMemo(() => fieldType(MESSAGE_FIELD, message, fields), [fields, message]);
 
   return (
     <AdditionalContext.Provider value={additionalContextValue}>
       <TableBody $expanded={expanded} $highlighted={message.id === highlightMessageId}>
-        <FieldsRow onClick={_toggleDetail}>
-          {selectedFields.toArray().map((selectedFieldName, idx) => {
-            const type = fieldType(selectedFieldName, message, fields);
-
-            return (
-              <TableDataCell $isNumeric={type.isNumeric()} key={selectedFieldName} data-testid={`message-summary-field-${selectedFieldName}`}>
-                {_renderStrong(
-                  <CustomHighlighting field={selectedFieldName} value={message.fields[selectedFieldName]}>
-                    <TypeSpecificValue value={message.fields[selectedFieldName]}
-                                       field={selectedFieldName}
-                                       type={type}
-                                       render={DecoratedValue} />
-                  </CustomHighlighting>,
-                  idx === 0,
-                )}
-              </TableDataCell>
-            );
-          })}
+        <FieldsRow onClick={_toggleDetail} className="table-data-row">
+          {selectedFieldsList}
         </FieldsRow>
 
         <MessagePreview showMessageRow={showMessageRow}
                         config={config}
                         colSpanFixup={colSpanFixup}
-                        messageFieldType={fieldType(MESSAGE_FIELD, message, fields)}
+                        messageFieldType={messageFieldType}
                         onRowClick={_toggleDetail}
                         message={message} />
 
         {expanded && (
           <MessageDetailRow>
-            {/* eslint-disable-next-line jsx-a11y/control-has-associated-label */}
             <td colSpan={colSpanFixup}>
               <MessageDetail message={message}
                              fields={fields}
@@ -205,34 +201,6 @@ const MessageTableEntry = ({
       </TableBody>
     </AdditionalContext.Provider>
   );
-};
-
-MessageTableEntry.propTypes = {
-  disableSurroundingSearch: PropTypes.bool,
-  expandAllRenderAsync: PropTypes.bool.isRequired,
-  expanded: PropTypes.bool.isRequired,
-  fields: PropTypes.object.isRequired,
-  message: PropTypes.shape({
-    fields: PropTypes.object.isRequired,
-    highlight_ranges: PropTypes.object,
-    id: PropTypes.string.isRequired,
-    index: PropTypes.string.isRequired,
-    decoration_stats: PropTypes.shape({
-      added_fields: PropTypes.object,
-      changed_fields: PropTypes.object,
-      removed_fields: PropTypes.object,
-    }),
-  }).isRequired,
-  // @ts-ignore
-  selectedFields: PropTypes.instanceOf(Immutable.OrderedSet),
-  showMessageRow: PropTypes.bool,
-  toggleDetail: PropTypes.func.isRequired,
-};
-
-MessageTableEntry.defaultProps = {
-  disableSurroundingSearch: false,
-  selectedFields: Immutable.OrderedSet(),
-  showMessageRow: false,
 };
 
 export default MessageTableEntry;

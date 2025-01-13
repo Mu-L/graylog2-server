@@ -17,16 +17,20 @@
 import * as React from 'react';
 import styled from 'styled-components';
 
-import { Icon, RelativeTime, Spinner } from 'components/common';
+import { Icon, Spinner, Timestamp } from 'components/common';
 import { Alert, Table } from 'components/bootstrap';
 import { DocumentationLink } from 'components/support';
 import useDataNodes from 'components/datanode/hooks/useDataNodes';
+
+type Props = {
+  showProvisioningState?: boolean
+}
 
 const StyledIcon = styled(Icon)`
   margin-right: 0.5em;
 `;
 
-const MigrationDatanodeList = () => {
+const MigrationDatanodeList = ({ showProvisioningState = true }: Props) => {
   const { data: dataNodes, isInitialLoading } = useDataNodes();
 
   if (isInitialLoading) {
@@ -35,7 +39,7 @@ const MigrationDatanodeList = () => {
 
   return (
     <div>
-      {(!dataNodes || dataNodes?.elements.length === 0) ? (
+      {(!dataNodes || dataNodes?.list.length === 0) ? (
         <>
           <p><StyledIcon name="info" />There are no Data Nodes found.</p>
           <Alert bsStyle="warning" title="No Data Nodes found">
@@ -45,7 +49,13 @@ const MigrationDatanodeList = () => {
         </>
       ) : (
         <>
-          <h4>Data Nodes found: {dataNodes?.elements.length}</h4>
+          <h4>Data Nodes found: {dataNodes?.list.length}</h4>
+          {dataNodes.list.find((datanode) => !datanode.version_compatible) && (
+            <Alert bsStyle="warning" title="Incompatible Data Nodes found">
+              There are Data Nodes running with versions incompatible to your current Graylog version.
+              Please make sure to use the same version for both Graylog and Data Node.
+            </Alert>
+          )}
           <br />
           <Table bordered condensed striped hover>
             <thead>
@@ -54,15 +64,23 @@ const MigrationDatanodeList = () => {
                 <th>Transport address</th>
                 <th>Status</th>
                 <th>Certificate valid until</th>
+                <th>Version</th>
               </tr>
             </thead>
             <tbody>
-              {dataNodes.elements.map((datanode) => (
+              {dataNodes.list.map((datanode) => (
                 <tr key={datanode.id}>
                   <td>{datanode.hostname}</td>
                   <td>{datanode.transport_address}</td>
-                  <td>{datanode.status}</td>
-                  <td>{datanode.cert_valid_until ? <RelativeTime dateTime={datanode.cert_valid_until} /> : 'No certificate'}</td>
+                  <td>{showProvisioningState ? datanode.status : datanode.data_node_status}</td>
+                  <td>{datanode.cert_valid_until ? <Timestamp dateTime={datanode.cert_valid_until} /> : 'No certificate'}</td>
+                  <td>
+                    {!datanode.version_compatible && (
+                      <Icon name="warning"
+                            title="This version is incompatible with your current Graylog version." />
+                    )}
+                    {datanode.datanode_version}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -35,7 +35,7 @@ import SearchResult from 'views/logic/SearchResult';
 import reexecuteSearchTypes from 'views/components/widgets/reexecuteSearchTypes';
 import type { SearchErrorResponse } from 'views/logic/SearchError';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import useAutoRefresh from 'views/hooks/useAutoRefresh';
 
 import type { MessageListResult } from './MessageList';
@@ -52,10 +52,6 @@ const mockEffectiveTimeRange: AbsoluteTimeRange = {
 jest.mock('stores/inputs/InputsStore', () => ({
   InputsStore: MockStore(),
   InputsActions: { list: jest.fn(() => Promise.resolve()) },
-}));
-
-jest.mock('views/stores/SearchConfigStore', () => ({
-  SearchConfigStore: MockStore('listSearchesClusterConfig', 'configurations'),
 }));
 
 jest.mock('views/hooks/useAutoRefresh');
@@ -101,17 +97,17 @@ describe('MessageList', () => {
     total: 1,
   };
 
-  beforeAll(() => {
-    loadViewsPlugin();
+  useViewsPlugin();
 
+  beforeAll(() => {
     asMock(useAutoRefresh).mockReturnValue({
       refreshConfig: null,
       startAutoRefresh: () => {},
       stopAutoRefresh: () => {},
+      restartAutoRefresh: () => {},
+      animationId: 'animation-id',
     });
   });
-
-  afterAll(unloadViewsPlugin);
 
   beforeEach(() => {
     asMock(useActiveQueryId).mockReturnValue('somequery');
@@ -133,7 +129,7 @@ describe('MessageList', () => {
     userEvent.click(nextPageButton);
   };
 
-  const SimpleMessageList = (props: Partial<React.ComponentProps<typeof MessageList>>) => (
+  const SimpleMessageList = ({ data: _data = data, config: _config = config, fields = Immutable.List([]), ...props }: Partial<React.ComponentProps<typeof MessageList>>) => (
     <TestStoreProvider>
       <MessageList title="Message List"
                    editing={false}
@@ -143,18 +139,14 @@ describe('MessageList', () => {
                    queryId="deadbeef"
                    toggleEdit={() => {}}
                    setLoadingState={() => {}}
-                   data={props.data}
-                   config={props.config}
-                   fields={props.fields}
+                   data={_data}
+                   config={_config}
+                   fields={fields}
+                   height={480}
+                   width={640}
                    {...props} />
     </TestStoreProvider>
   );
-
-  SimpleMessageList.defaultProps = {
-    config: config,
-    data: data,
-    fields: Immutable.List([]),
-  };
 
   it('should render width widget fields', async () => {
     const fields = [new FieldTypeMapping('file_name', new FieldType('string', ['full-text-search'], []))];
@@ -222,6 +214,8 @@ describe('MessageList', () => {
       refreshConfig: null,
       startAutoRefresh: () => {},
       stopAutoRefresh,
+      restartAutoRefresh: () => {},
+      animationId: 'animation-id',
     });
 
     const dispatch = jest.fn().mockResolvedValue(finishedLoading({

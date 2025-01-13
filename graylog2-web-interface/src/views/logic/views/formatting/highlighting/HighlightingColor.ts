@@ -14,7 +14,7 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-import type * as chroma from 'chroma-js';
+import type chroma from 'chroma-js';
 
 import scaleForGradient from 'views/components/sidebar/highlighting/Scale';
 
@@ -156,7 +156,7 @@ export class GradientColor extends HighlightingColor {
     const spread = this.upper - this.lower;
     const normalizedValue = Math.max(this.lower, Math.min(this.upper, parsedValue));
 
-    return this._scale((normalizedValue - this.lower) / spread);
+    return this._scale((normalizedValue - this.lower) / spread).hex();
   }
 
   static fromJSON({ gradient, lower, upper }: GradientColorJson) {

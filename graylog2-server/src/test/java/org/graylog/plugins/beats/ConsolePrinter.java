@@ -30,6 +30,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LoggingHandler;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.TestMessageFactory;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.journal.RawMessage;
 import org.graylog2.shared.bindings.providers.ObjectMapperProvider;
@@ -56,7 +57,7 @@ public class ConsolePrinter {
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
-                        public void initChannel(SocketChannel ch) throws Exception {
+                        public void initChannel(SocketChannel ch) {
                             ch.pipeline().addLast("logging", new LoggingHandler());
                             ch.pipeline().addLast("beats-frame-decoder", new BeatsFrameDecoder());
                             ch.pipeline().addLast("beats-codec", new BeatsCodecHandler());
@@ -73,16 +74,16 @@ public class ConsolePrinter {
 
     public static class BeatsCodecHandler extends SimpleChannelInboundHandler<ByteBuf> {
         private final ObjectMapper objectMapper = new ObjectMapperProvider().get();
-        private final Beats2Codec beatsCodec = new Beats2Codec(Configuration.EMPTY_CONFIGURATION, objectMapper);
+        private final Beats2Codec beatsCodec = new Beats2Codec(Configuration.EMPTY_CONFIGURATION, objectMapper, new TestMessageFactory());
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, ByteBuf message) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, ByteBuf message) {
             final int readableBytes = message.readableBytes();
             final byte[] messageBytes = new byte[readableBytes];
             message.readBytes(messageBytes);
             final RawMessage rawMessage = new RawMessage(messageBytes);
 
-            final Message decodedMessage = beatsCodec.decode(rawMessage);
+            final Message decodedMessage = beatsCodec.decodeSafe(rawMessage).get();
             System.out.println(decodedMessage);
 
             ctx.fireChannelRead(decodedMessage);

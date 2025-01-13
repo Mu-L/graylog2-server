@@ -23,9 +23,9 @@ import WidgetContext from 'views/components/contexts/WidgetContext';
 import QueryEditModeContext from 'views/components/contexts/QueryEditModeContext';
 import SaveOrCancelButtons from 'views/components/widgets/SaveOrCancelButtons';
 import WidgetEditApplyAllChangesProvider from 'views/components/contexts/WidgetEditApplyAllChangesProvider';
+import type Widget from 'views/logic/widgets/Widget';
 
 import WidgetQueryControls from '../WidgetQueryControls';
-import IfDashboard from '../dashboard/IfDashboard';
 import WidgetOverrideElements from '../WidgetOverrideElements';
 import DisableSubmissionStateProvider from '../contexts/DisableSubmissionStateProvider';
 
@@ -49,12 +49,14 @@ const Visualization = styled.div`
 
 type Props = {
   children: React.ReactNode,
-  onCancel: () => void,
-  onSubmit: () => void,
   displaySubmitActions?: boolean,
+  onCancel: () => void,
+  showQueryControls?: boolean,
+  onSubmit: (newWidget: Widget, hasChanges: boolean) => Promise<void>,
+  containerComponent?: React.ComponentType<React.PropsWithChildren>
 };
 
-const EditWidgetFrame = ({ children, onCancel, onSubmit, displaySubmitActions }: Props) => {
+const EditWidgetFrame = ({ children, onCancel, onSubmit, displaySubmitActions = true, showQueryControls = true, containerComponent: ContainerComponent = WidgetOverrideElements }: Props) => {
   const widget = useContext(WidgetContext);
 
   if (!widget) {
@@ -62,34 +64,30 @@ const EditWidgetFrame = ({ children, onCancel, onSubmit, displaySubmitActions }:
   }
 
   return (
-    <WidgetEditApplyAllChangesProvider widget={widget}>
+    <WidgetEditApplyAllChangesProvider widget={widget} onSubmit={onSubmit}>
       <DisableSubmissionStateProvider>
         <Container>
-          <IfDashboard>
+          {(showQueryControls && !widget.returnsAllRecords) && (
             <QueryControls>
               <QueryEditModeContext.Provider value="widget">
                 <WidgetQueryControls />
               </QueryEditModeContext.Provider>
             </QueryControls>
-          </IfDashboard>
+          )}
           <Visualization role="presentation">
-            <WidgetOverrideElements>
+            <ContainerComponent>
               {children}
-            </WidgetOverrideElements>
+            </ContainerComponent>
           </Visualization>
           {displaySubmitActions && (
             <div>
-              <SaveOrCancelButtons onSubmit={onSubmit} onCancel={onCancel} />
+              <SaveOrCancelButtons onCancel={onCancel} />
             </div>
           )}
         </Container>
       </DisableSubmissionStateProvider>
     </WidgetEditApplyAllChangesProvider>
   );
-};
-
-EditWidgetFrame.defaultProps = {
-  displaySubmitActions: true,
 };
 
 export default EditWidgetFrame;

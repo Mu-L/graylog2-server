@@ -16,18 +16,17 @@
  */
 import * as React from 'react';
 import { render, screen, fireEvent, within } from 'wrappedTestingLibrary';
-import { QueryParamProvider } from 'use-query-params';
-import { ReactRouter6Adapter } from 'use-query-params/adapters/react-router-6';
 
 import asMock from 'helpers/mocking/AsMock';
 import useUserLayoutPreferences from 'components/common/EntityDataTable/hooks/useUserLayoutPreferences';
 import { layoutPreferences } from 'fixtures/entityListLayoutPreferences';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import useFieldTypesForMappings from 'views/logic/fieldactions/ChangeFieldType/hooks/useFieldTypesForMappings';
 import { profile1, attributes, profile2 } from 'fixtures/indexSetFieldTypeProfiles';
 import ProfilesList from 'components/indices/IndexSetFieldTypeProfiles/ProfilesList';
-import useProfiles from 'components/indices/IndexSetFieldTypeProfiles/hooks/useProfiles';
+import useFetchEntities from 'components/common/PaginatedEntityTable/useFetchEntities';
+import DefaultQueryParamProvider from 'routing/DefaultQueryParamProvider';
 
 const getData = (list = [profile1]) => (
   {
@@ -40,24 +39,22 @@ const getData = (list = [profile1]) => (
 );
 
 const renderIndexSetFieldTypeProfilesList = () => render(
-  <QueryParamProvider adapter={ReactRouter6Adapter}>
+  <DefaultQueryParamProvider>
     <TestStoreProvider>
       <ProfilesList />
     </TestStoreProvider>,
-  </QueryParamProvider>,
+  </DefaultQueryParamProvider>,
 );
 
 jest.mock('routing/useParams', () => jest.fn());
 
-jest.mock('components/indices/IndexSetFieldTypeProfiles/hooks/useProfiles', () => jest.fn());
+jest.mock('components/common/PaginatedEntityTable/useFetchEntities', () => jest.fn());
 jest.mock('views/logic/fieldactions/ChangeFieldType/hooks/useFieldTypesForMappings', () => jest.fn());
 
 jest.mock('components/common/EntityDataTable/hooks/useUserLayoutPreferences');
 
 describe('IndexSetFieldTypesList', () => {
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   beforeEach(() => {
     asMock(useUserLayoutPreferences).mockReturnValue({
@@ -85,8 +82,8 @@ describe('IndexSetFieldTypesList', () => {
   });
 
   it('Shows list of field type profiles with correct data', async () => {
-    asMock(useProfiles).mockReturnValue({
-      isLoading: false,
+    asMock(useFetchEntities).mockReturnValue({
+      isInitialLoading: false,
       refetch: () => {},
       data: getData([profile1, profile2]),
     });
@@ -108,8 +105,8 @@ describe('IndexSetFieldTypesList', () => {
   });
 
   it('Shows list of Custom Field Mappings for profile', async () => {
-    asMock(useProfiles).mockReturnValue({
-      isLoading: false,
+    asMock(useFetchEntities).mockReturnValue({
+      isInitialLoading: false,
       refetch: () => {},
       data: getData([profile1, profile2]),
     });

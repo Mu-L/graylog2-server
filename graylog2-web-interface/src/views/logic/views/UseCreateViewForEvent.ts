@@ -19,12 +19,17 @@ import * as Immutable from 'immutable';
 import uniq from 'lodash/uniq';
 
 import View from 'views/logic/views/View';
-import type { AbsoluteTimeRange, ElasticsearchQueryString, RelativeTimeRangeStartOnly } from 'views/logic/queries/Query';
+import type {
+  AbsoluteTimeRange,
+  ElasticsearchQueryString,
+  RelativeTimeRangeStartOnly,
+  TimeRange,
+} from 'views/logic/queries/Query';
 import type { Event } from 'components/events/events/types';
-import type { EventDefinition } from 'logic/alerts/types';
+import type { EventDefinition, SearchFilter } from 'components/event-definitions/event-definitions-types';
 import QueryGenerator from 'views/logic/queries/QueryGenerator';
 import Search from 'views/logic/search/Search';
-import { matchesDecoratorStream } from 'views/logic/views/ViewStateGenerator';
+import { matchesDecoratorStream, matchesDecoratorStreamCategories } from 'views/logic/views/ViewStateGenerator';
 import UpdateSearchForWidgets from 'views/logic/views/UpdateSearchForWidgets';
 import ViewState from 'views/logic/views/ViewState';
 import { allMessagesTable, resultHistogram } from 'views/logic/Widgets';
@@ -42,11 +47,10 @@ import SortConfig from 'views/logic/aggregationbuilder/SortConfig';
 import Direction from 'views/logic/aggregationbuilder/Direction';
 import type { ParameterJson } from 'views/logic/parameters/Parameter';
 import Parameter from 'views/logic/parameters/Parameter';
-import { concatQueryStrings, escape } from 'views/logic/queries/QueryHelper';
+import { concatQueryStrings, escape, predicate } from 'views/logic/queries/QueryHelper';
 import HighlightingRule, { randomColor } from 'views/logic/views/formatting/highlighting/HighlightingRule';
 import { exprToConditionMapper } from 'views/logic/ExpressionConditionMappers';
 import FormattingSettings from 'views/logic/views/formatting/FormattingSettings';
-import type { SearchFilter } from 'components/event-definitions/event-definitions-types';
 
 const AGGREGATION_WIDGET_HEIGHT = 3;
 
@@ -113,12 +117,20 @@ const getSummaryAggregation = ({ aggregations, groupBy }) => {
   });
 };
 
-export const WidgetsGenerator = async ({ streams, aggregations, groupBy }) => {
+export const WidgetsGenerator = async ({ streams, streamCategories, aggregations, groupBy }) => {
   const decorators = await DecoratorsActions.list();
   const byStreamId = matchesDecoratorStream(streams);
+  const byStreamCategory = matchesDecoratorStreamCategories(streamCategories);
   const streamDecorators = decorators?.length ? decorators.filter(byStreamId) : [];
+  const streamCategoryDecorators = decorators?.length ? decorators.filter(byStreamCategory) : [];
+  // eslint-disable-next-line no-nested-ternary
+  const allDecorators = streamDecorators.length && streamCategoryDecorators.length
+    ? [...streamDecorators, ...streamCategoryDecorators]
+    : streamDecorators.length
+      ? streamDecorators
+      : streamCategoryDecorators;
   const histogram = resultHistogram();
-  const messageTable = allMessagesTable(undefined, streamDecorators);
+  const messageTable = allMessagesTable(undefined, allDecorators);
   const needsSummaryAggregations = aggregations.length > 1;
   const SUMMARY_ROW_DELTA = needsSummaryAggregations ? AGGREGATION_WIDGET_HEIGHT : 0;
   const { aggregationWidgets, aggregationTitles, aggregationPositions } = aggregations.reduce((res, { field, value, expr, fnSeries }, index) => {
@@ -160,8 +172,8 @@ export const WidgetsGenerator = async ({ streams, aggregations, groupBy }) => {
   return { titles, widgets, positions };
 };
 
-export const ViewStateGenerator = async ({ streams, aggregations, groupBy }: {groupBy: Array<string>, streams: string | string[] | undefined, aggregations: Array<any>}) => {
-  const { titles, widgets, positions } = await WidgetsGenerator({ streams, aggregations, groupBy });
+export const ViewStateGenerator = async ({ streams, streamCategories, aggregations, groupBy }: {groupBy: Array<string>, streams: string | string[] | undefined, streamCategories: string | string[] | undefined, aggregations: Array<any>}) => {
+  const { titles, widgets, positions } = await WidgetsGenerator({ streams, streamCategories, aggregations, groupBy });
 
   const highlightRules = aggregations?.map(({ fnSeries, value, expr }) => HighlightingRule.create(fnSeries, value, exprToConditionMapper[expr] || 'equal', randomColor()));
 
@@ -176,6 +188,7 @@ export const ViewStateGenerator = async ({ streams, aggregations, groupBy }: {gr
 
 export const ViewGenerator = async ({
   streams,
+  streamCategories,
   timeRange,
   queryString,
   aggregations,
@@ -184,6 +197,7 @@ export const ViewGenerator = async ({
   searchFilters,
 }: {
   streams: string | string[] | undefined | null,
+  streamCategories: string | string[] | undefined | null,
   timeRange: AbsoluteTimeRange | RelativeTimeRangeStartOnly,
   queryString: ElasticsearchQueryString,
   aggregations: Array<EventDefinitionAggregation>
@@ -191,10 +205,10 @@ export const ViewGenerator = async ({
   queryParameters: Array<ParameterJson>,
   searchFilters?: Array<SearchFilter>,
 }) => {
-  const query = QueryGenerator(streams, undefined, timeRange, queryString, (searchFilters || []));
+  const query = QueryGenerator(streams, streamCategories, undefined, timeRange, queryString, (searchFilters || []));
   const search = Search.create().toBuilder().queries([query]).parameters(queryParameters.map((param) => Parameter.fromJSON(param)))
     .build();
-  const viewState = await ViewStateGenerator({ streams, aggregations, groupBy });
+  const viewState = await ViewStateGenerator({ streams, streamCategories, aggregations, groupBy });
 
   const view = View.create()
     .toBuilder()
@@ -208,29 +222,35 @@ export const ViewGenerator = async ({
 };
 
 export const UseCreateViewForEvent = (
-  { eventData, eventDefinition, aggregations }: { eventData: Event, eventDefinition: EventDefinition, aggregations: Array<EventDefinitionAggregation> },
+  { eventData, eventDefinition, aggregations }: { eventData?: Event, eventDefinition: EventDefinition, aggregations: Array<EventDefinitionAggregation> },
 ) => {
-  const queryStringFromGrouping = concatQueryStrings(Object.entries(eventData.group_by_fields).map(([field, value]) => `${field}:${escape(value)}`), { withBrackets: false });
-  const eventQueryString = eventData?.replay_info?.query || '';
-  const { streams } = eventData.replay_info;
-  const timeRange: AbsoluteTimeRange = {
-    type: 'absolute',
-    from: eventData?.replay_info?.timerange_start,
-    to: eventData?.replay_info?.timerange_end,
-  };
+  const queryStringFromGrouping = concatQueryStrings(Object.entries(eventData?.group_by_fields ?? {})
+    .map(([field, value]) => predicate(field, escape(value))), { withBrackets: false });
+  const eventQueryString = eventData?.replay_info?.query ?? eventDefinition?.config?.query ?? '';
+  const streams = eventData?.replay_info?.streams ?? eventDefinition?.config?.streams ?? [];
+  const streamCategories = eventData?.replay_info?.stream_categories ?? eventDefinition?.config?.stream_categories ?? [];
+  const timeRange: TimeRange = eventData
+    ? {
+      type: 'absolute',
+      from: eventData?.replay_info?.timerange_start,
+      to: eventData?.replay_info?.timerange_end,
+    } : {
+      type: 'relative',
+      range: (eventDefinition?.config?.search_within_ms ?? 0) / 1000,
+    };
   const queryString: ElasticsearchQueryString = {
     type: 'elasticsearch',
-    query_string: concatQueryStrings([eventQueryString, queryStringFromGrouping]),
+    query_string: eventData ? concatQueryStrings([eventQueryString, queryStringFromGrouping]) : (eventDefinition?.config?.query ?? ''),
   };
 
-  const queryParameters = eventDefinition?.config?.query_parameters || [];
+  const queryParameters = eventDefinition?.config?.query_parameters ?? [];
 
   const groupBy = eventDefinition?.config?.group_by ?? [];
 
-  const searchFilters = eventDefinition.config?.filters;
+  const searchFilters = eventDefinition?.config?.filters ?? [];
 
   return useMemo(
-    () => ViewGenerator({ streams, timeRange, queryString, aggregations, groupBy, queryParameters, searchFilters }),
+    () => ViewGenerator({ streams, streamCategories, timeRange, queryString, aggregations, groupBy, queryParameters, searchFilters }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );

@@ -14,7 +14,6 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-import PropTypes from 'prop-types';
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
@@ -32,10 +31,10 @@ const StyledIcon = styled(Icon)`
 `;
 
 type Props = {
-  server: {
+  server?: {
     up: false,
     error?: ServerError,
-  },
+  }
 };
 
 const ServerUnavailablePage = ({ server }: Props) => {
@@ -133,7 +132,7 @@ const ServerUnavailablePage = ({ server }: Props) => {
                         onClick={_toggleDetails}
                         bsSize="sm">
                   {showDetails ? 'Less details' : 'More details'}
-                  <StyledIcon name={showDetails ? 'expand_less' : 'expand_more'} />
+                  <StyledIcon name={showDetails ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
                 </Button>
                 {_formatErrorMessage()}
               </div>
@@ -143,14 +142,6 @@ const ServerUnavailablePage = ({ server }: Props) => {
       </LoginChrome>
     </DocumentTitle>
   );
-};
-
-ServerUnavailablePage.propTypes = {
-  server: PropTypes.object,
-};
-
-ServerUnavailablePage.defaultProps = {
-  server: undefined,
 };
 
 export default ServerUnavailablePage;

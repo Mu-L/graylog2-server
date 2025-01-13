@@ -38,6 +38,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 public class RunningElasticsearchInstanceES7 implements SearchServerInstance {
     private final RestHighLevelClient restHighLevelClient;
@@ -45,6 +46,10 @@ public class RunningElasticsearchInstanceES7 implements SearchServerInstance {
     private final Client client;
     private final FixtureImporter fixtureImporter;
     private final Adapters adapters;
+
+    public RunningElasticsearchInstanceES7() {
+        this(List.of());
+    }
 
     public RunningElasticsearchInstanceES7(final List<String> featureFlags) {
         this.restHighLevelClient = buildRestClient();
@@ -91,7 +96,7 @@ public class RunningElasticsearchInstanceES7 implements SearchServerInstance {
     }
 
     @Override
-    public GenericContainer<?> createContainer(SearchVersion version, Network network, String heapSize) {
+    public GenericContainer<?> createContainer(SearchVersion version, Network network, String heapSize, Map<String, String> env) {
         return null;
     }
 

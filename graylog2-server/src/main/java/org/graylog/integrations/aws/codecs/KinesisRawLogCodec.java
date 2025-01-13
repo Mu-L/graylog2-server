@@ -18,8 +18,10 @@ package org.graylog.integrations.aws.codecs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.assistedinject.Assisted;
+import jakarta.inject.Inject;
 import org.graylog.integrations.aws.cloudwatch.KinesisLogEntry;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.MessageFactory;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.inputs.annotations.ConfigClass;
 import org.graylog2.plugin.inputs.annotations.FactoryClass;
@@ -27,25 +29,24 @@ import org.graylog2.plugin.inputs.codecs.AbstractCodec;
 import org.graylog2.plugin.inputs.codecs.Codec;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
+import java.util.Optional;
 
 public class KinesisRawLogCodec extends AbstractKinesisCodec {
     public static final String NAME = "CloudWatchRawLog";
     static final String SOURCE = "aws-kinesis-raw-logs";
+    private final MessageFactory messageFactory;
 
     @Inject
-    public KinesisRawLogCodec(@Assisted Configuration configuration, ObjectMapper objectMapper) {
+    public KinesisRawLogCodec(@Assisted Configuration configuration, ObjectMapper objectMapper, MessageFactory messageFactory) {
         super(configuration, objectMapper);
+        this.messageFactory = messageFactory;
     }
 
-    @Nullable
     @Override
-    public Message decodeLogData(@Nonnull final KinesisLogEntry logEvent) {
+    public Optional<Message> decodeLogData(@Nonnull final KinesisLogEntry logEvent) {
         try {
             final String source = configuration.getString(KinesisCloudWatchFlowLogCodec.Config.CK_OVERRIDE_SOURCE, SOURCE);
-            Message result = new Message(
+            Message result = messageFactory.createMessage(
                     logEvent.message(),
                     source,
                     logEvent.timestamp()
@@ -54,7 +55,7 @@ public class KinesisRawLogCodec extends AbstractKinesisCodec {
             result.addField(FIELD_LOG_GROUP, logEvent.logGroup());
             result.addField(FIELD_LOG_STREAM, logEvent.logStream());
 
-            return result;
+            return Optional.of(result);
         } catch (Exception e) {
             throw new RuntimeException("Could not deserialize AWS FlowLog record.", e);
         }

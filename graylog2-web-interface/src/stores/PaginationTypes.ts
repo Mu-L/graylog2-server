@@ -15,10 +15,9 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import type * as Immutable from 'immutable';
-import type { $PropertyType } from 'utility-types';
 
 import type { AdditionalQueries } from 'util/PaginationURL';
-import type { UrlQueryFilters } from 'components/common/EntityFilters/types';
+import type { UrlQueryFilters, Filter, Filters } from 'components/common/EntityFilters/types';
 
 export type PaginatedResponseType = {
   count: number,
@@ -29,9 +28,9 @@ export type PaginatedResponseType = {
 };
 
 export type PaginatedListJSON = {
-  page: $PropertyType<Pagination, 'page'>,
-  per_page: $PropertyType<Pagination, 'perPage'>,
-  query: $PropertyType<Pagination, 'query'>,
+  page: Pagination['page'],
+  per_page: Pagination['perPage'],
+  query: Pagination['query'],
   total: number,
   count: number,
 };
@@ -72,17 +71,26 @@ export type SearchParams = {
   filters?: UrlQueryFilters
 }
 
+export type FilterComponentProps = {
+  attribute: Attribute,
+  filter?: Filter,
+  filterValueRenderer: (value: Filter['value'], title: string) => React.ReactNode | undefined,
+  onSubmit: (filter: { title: string, value: string }, closeDropdown?: boolean) => void,
+  allActiveFilters: Filters | undefined,
+}
 export type Attribute = {
   id: string,
   title: string,
   type?: 'BOOLEAN' | 'STRING' | 'DATE' | 'OBJECT_ID',
-  sortable: boolean,
+  sortable?: boolean,
   hidden?: boolean,
   searchable?: boolean,
   filterable?: true,
-  filter_options?: Array<{ value: string, title: string }>
+  filter_options?: Array<{ value: string, title: string }>,
+  filter_component?: React.ComponentType<FilterComponentProps>,
   related_collection?: string,
-
+  related_property?: string,
+  permissions?: Array<string>,
 }
 
 export type Attributes = Array<Attribute>

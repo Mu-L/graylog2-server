@@ -20,7 +20,6 @@ import type { ActionComponentProps, ActionHandlerArguments } from 'views/compone
 import ChangeFieldTypeModal from 'views/logic/fieldactions/ChangeFieldType/ChangeFieldTypeModal';
 import { isFunction } from 'views/logic/aggregationbuilder/Series';
 import type User from 'logic/users/User';
-import AppConfig from 'util/AppConfig';
 import isReservedField from 'views/logic/IsReservedField';
 import useInitialSelection from 'views/logic/fieldactions/ChangeFieldType/hooks/useInitialSelection';
 import { isPermitted } from 'util/PermissionsMixin';
@@ -35,13 +34,14 @@ const ChangeFieldType = ({
     onClose();
   }, [onClose]);
 
-  const initialSelection = useInitialSelection();
+  const { list, isLoading } = useInitialSelection();
 
   return show ? (
-    <ChangeFieldTypeModal initialSelectedIndexSets={initialSelection}
+    <ChangeFieldTypeModal initialSelectedIndexSets={list}
                           onClose={handleOnClose}
                           initialData={{ fieldName: field }}
-                          show />
+                          show
+                          initialSelectionDataLoaded={!isLoading} />
   ) : null;
 };
 
@@ -52,8 +52,6 @@ export const isChangeFieldTypeEnabled = ({ field, type, contexts }: ActionHandle
 
   return (!isFunction(field) && !type.isDecorated() && !isReservedField(field) && hasMappingPermission(currentUser));
 };
-
-export const isChangeFieldTypeHidden = () => !AppConfig.isFeatureEnabled('field_types_management');
 
 export const ChangeFieldTypeHelp = ({ contexts }: ActionHandlerArguments) => {
   const { currentUser } = contexts;

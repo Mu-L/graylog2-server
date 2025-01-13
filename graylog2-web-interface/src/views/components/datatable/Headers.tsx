@@ -45,12 +45,14 @@ const CenteredTh = styled(TableHeaderCell)`
 `;
 
 const PinIcon = styled.button(({ theme }) => css`
+  display: inline-flex;
   border: 0;
   background: transparent;
   padding: 5px;
   cursor: pointer;
   position: relative;
   color: ${theme.colors.gray[70]};
+  vertical-align: middle;
 
   &.active {
     color: ${theme.colors.gray[20]};
@@ -72,6 +74,7 @@ type HeaderFilterProps = {
   onSetColumnsWidth?: (props: { field: string, offsetWidth: number }) => void
   isPinned?: boolean | undefined,
   showPinIcon?: boolean,
+  setLoadingState: (loading: boolean) => void,
   togglePin: (field: string) => void,
 }
 
@@ -91,6 +94,7 @@ const HeaderField = ({
   isPinned,
   showPinIcon = false,
   togglePin,
+  setLoadingState,
 }: HeaderFilterProps) => {
   const type = fieldTypeFor(field, fields);
   const thRef = useRef(null);
@@ -112,26 +116,16 @@ const HeaderField = ({
                      $isNumeric={type.isNumeric()}
                      $borderedHeader={borderedHeader}>
       <Field name={field} queryId={activeQuery} type={type}>{title}</Field>
-      {showPinIcon && <PinIcon data-testid={`pin-${prefix}${field}`} type="button" onClick={_togglePin} className={isPinned ? 'active' : ''}><Icon name="push_pin" /></PinIcon>}
+      {showPinIcon && <PinIcon data-testid={`pin-${prefix}${field}`} type="button" onClick={_togglePin} className={isPinned ? 'active' : ''}><Icon name="keep" /></PinIcon>}
       {sortable && sortType && (
-      <FieldSortIcon fieldName={field}
-                     onSortChange={onSortChange}
-                     setLoadingState={() => {}}
-                     sortConfigMap={sortConfigMap}
-                     type={sortType} />
+        <FieldSortIcon fieldName={field}
+                       onSortChange={onSortChange}
+                       setLoadingState={setLoadingState}
+                       sortConfigMap={sortConfigMap}
+                       type={sortType} />
       )}
     </TableHeaderCell>
   );
-};
-
-HeaderField.defaultProps = {
-  prefix: undefined,
-  span: undefined,
-  title: undefined,
-  sortType: undefined,
-  onSetColumnsWidth: undefined,
-  isPinned: undefined,
-  showPinIcon: undefined,
 };
 
 type HeaderFieldForValueProps = {
@@ -149,11 +143,6 @@ const HeaderFieldForValue = ({ field, value, span = 1, prefix = '', type, border
     <Value field={field} value={value} type={type} />
   </CenteredTh>
 );
-
-HeaderFieldForValue.defaultProps = {
-  span: 1,
-  prefix: '',
-};
 
 const Spacer = ({ span }: { span: number }) => <th aria-label="spacer" colSpan={span} />;
 
@@ -202,12 +191,7 @@ const ColumnPivotFieldsHeaders = ({ fields, pivots, values, series, offset = 1, 
     );
   });
 
-  // eslint-disable-next-line react/jsx-no-useless-fragment
   return <>{headerRows}</>;
-};
-
-ColumnPivotFieldsHeaders.defaultProps = {
-  offset: 1,
 };
 
 type Props = {
@@ -220,9 +204,10 @@ type Props = {
   fields: FieldTypeMappingsList,
   onSortChange: (sortConfig: Array<SortConfig>) => Promise<unknown>;
   sortConfigMap: OrderedMap<string, SortConfig>;
-  onSetColumnsWidth: (props: { field: string, offsetWidth: number }) => void,
+  onSetColumnsWidth?: (props: { field: string, offsetWidth: number }) => void
   pinnedColumns?: Immutable.Set<string>
-  togglePin: (field: string) => void
+  togglePin: (field: string) => void,
+  setLoadingState: (loading: boolean) => void,
 };
 
 const Headers = ({
@@ -236,8 +221,9 @@ const Headers = ({
   onSortChange,
   sortConfigMap,
   onSetColumnsWidth,
-  pinnedColumns,
+  pinnedColumns = Immutable.Set(),
   togglePin,
+  setLoadingState,
 }: Props) => {
   const activeQuery = useActiveQueryId();
   const rowFieldNames = rowPivots.flatMap((pivot) => pivot.fields);
@@ -260,7 +246,8 @@ const Headers = ({
                  onSetColumnsWidth={onSetColumnsWidth}
                  isPinned={pinnedColumns.has(`${prefix}${field}`)}
                  showPinIcon={showPinIcon}
-                 togglePin={togglePin} />
+                 togglePin={togglePin}
+                 setLoadingState={setLoadingState} />
   );
 
   const rowPivotFields = rowFieldNames.map((fieldName) => headerField({ field: fieldName, sortable: interactive, sortType: SortConfig.PIVOT_TYPE, showPinIcon: interactive }));
@@ -283,10 +270,6 @@ const Headers = ({
       </tr>
     </>
   );
-};
-
-Headers.defaultProps = {
-  pinnedColumns: Immutable.Set(),
 };
 
 export default Headers;

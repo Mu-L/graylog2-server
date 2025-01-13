@@ -17,7 +17,6 @@
 import React from 'react';
 import { mount } from 'wrappedEnzyme';
 import * as Immutable from 'immutable';
-import 'helpers/mocking/react-dom_mock';
 import { Form, Formik } from 'formik';
 
 import AggregationWidgetConfig from 'views/logic/aggregationbuilder/AggregationWidgetConfig';
@@ -34,7 +33,7 @@ import Direction from 'views/logic/aggregationbuilder/Direction';
 import DataTableVisualizationConfig from 'views/logic/aggregationbuilder/visualizations/DataTableVisualizationConfig';
 import type WidgetConfig from 'views/logic/widgets/WidgetConfig';
 import TestStoreProvider from 'views/test/TestStoreProvider';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import AggregationWidget from 'views/logic/aggregationbuilder/AggregationWidget';
 import { createViewWithWidgets } from 'fixtures/searches';
 import { updateWidgetConfig } from 'views/logic/slices/widgetActions';
@@ -133,10 +132,9 @@ describe('DataTable', () => {
                            to: '2020-01-10T14:23:42.000Z',
                            type: 'absolute',
                          }}
-                         toggleEdit={() => {
-                         }}
-                         onChange={() => {
-                         }}
+                         setLoadingState={() => {}}
+                         toggleEdit={() => {}}
+                         onChange={() => {}}
                          height={200}
                          width={300}
                          {...props} />
@@ -147,9 +145,7 @@ describe('DataTable', () => {
     );
   };
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   it('should render with empty data', () => {
     const config = AggregationWidgetConfig.builder()

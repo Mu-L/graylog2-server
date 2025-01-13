@@ -34,6 +34,8 @@ public class MigrationStateMachineContext {
 
     public static final String KEY_MIGRATION_ID = "migrationID";
 
+    public static final String KEY_COMPATIBILITY_CHECK_PASSED = "compatibilityCheckResult";
+
     @JsonProperty
     protected MigrationStep currentStep;
     @JsonProperty
@@ -108,6 +110,10 @@ public class MigrationStateMachineContext {
             throw new IllegalArgumentException("Argument " + name + " must be of type " + type);
         }
         return Optional.of((T) value);
+    }
+
+    public void removeExtendedState(String name) {
+        this.extendedState.remove(name);
     }
 
     public void setResponse(Object response) {

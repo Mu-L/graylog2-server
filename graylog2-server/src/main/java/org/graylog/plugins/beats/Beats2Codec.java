@@ -20,7 +20,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.inject.assistedinject.Assisted;
+import jakarta.inject.Inject;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.MessageFactory;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.configuration.ConfigurationRequest;
@@ -29,6 +31,7 @@ import org.graylog2.plugin.inputs.annotations.Codec;
 import org.graylog2.plugin.inputs.annotations.ConfigClass;
 import org.graylog2.plugin.inputs.annotations.FactoryClass;
 import org.graylog2.plugin.inputs.codecs.AbstractCodec;
+import org.graylog2.plugin.inputs.failure.InputProcessingException;
 import org.graylog2.plugin.journal.RawMessage;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
@@ -36,14 +39,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -55,34 +55,37 @@ public class Beats2Codec extends AbstractCodec {
     private static final String CK_NO_BEATS_PREFIX = "no_beats_prefix";
 
     private final ObjectMapper objectMapper;
+    private final MessageFactory messageFactory;
     private final boolean noBeatsPrefix;
 
     @Inject
-    public Beats2Codec(@Assisted Configuration configuration, ObjectMapper objectMapper) {
+    public Beats2Codec(@Assisted Configuration configuration, ObjectMapper objectMapper, MessageFactory messageFactory) {
         super(configuration);
 
         this.noBeatsPrefix = configuration.getBoolean(CK_NO_BEATS_PREFIX, false);
         this.objectMapper = requireNonNull(objectMapper);
+        this.messageFactory = messageFactory;
     }
 
-    @Nullable
     @Override
-    public Message decode(@Nonnull RawMessage rawMessage) {
-        final byte[] payload = rawMessage.getPayload();
-        final JsonNode event;
+    public Optional<Message> decodeSafe(@Nonnull RawMessage rawMessage) {
         try {
+            final byte[] payload = rawMessage.getPayload();
+            final JsonNode event;
             event = objectMapper.readTree(payload);
             if (event == null || event.isMissingNode()) {
-                throw new IOException("null result");
+                throw InputProcessingException.create("Decoded message is null or empty!", rawMessage);
             }
-        } catch (IOException e) {
-            LOG.error("Couldn't decode raw message {}", rawMessage);
-            return null;
+            return Optional.of(parseEvent(event));
+        } catch (InputProcessingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw InputProcessingException.create("Couldn't decode beats 2 message",
+                    e, rawMessage, new String(rawMessage.getPayload(), charset));
         }
-
-        return parseEvent(event);
     }
 
+    @Nonnull
     private Message parseEvent(JsonNode event) {
         final String beatsType = event.path("@metadata").path("beat").asText("beat");
         final String rootPath = noBeatsPrefix ? "" : beatsType;
@@ -104,7 +107,7 @@ public class Beats2Codec extends AbstractCodec {
 
         final String hostname = agentName.asText(BEATS_UNKNOWN);
 
-        final Message gelfMessage = new Message(message, hostname, timestamp);
+        final Message gelfMessage = messageFactory.createMessage(message, hostname, timestamp);
         gelfMessage.addField("beats_type", beatsType);
 
         // This field should be stored without a prefix

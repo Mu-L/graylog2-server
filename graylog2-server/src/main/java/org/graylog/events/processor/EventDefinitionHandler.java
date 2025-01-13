@@ -16,6 +16,9 @@
  */
 package org.graylog.events.processor;
 
+import com.mongodb.client.model.Filters;
+import jakarta.inject.Inject;
+import org.bson.conversions.Bson;
 import org.graylog.events.event.Event;
 import org.graylog.events.event.EventWithContext;
 import org.graylog.events.notifications.EventNotificationExecutionJob;
@@ -28,11 +31,8 @@ import org.graylog.scheduler.clock.JobSchedulerClock;
 import org.graylog2.database.entities.DefaultEntityScope;
 import org.graylog2.plugin.database.users.User;
 import org.joda.time.DateTime;
-import org.mongojack.DBQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import jakarta.inject.Inject;
 
 import java.util.HashMap;
 import java.util.List;
@@ -105,6 +105,7 @@ public class EventDefinitionHandler {
         var copy = eventDefinition.toBuilder()
                 .id(null)
                 .title("COPY-" + eventDefinition.title())
+                .remediationSteps(eventDefinition.remediationSteps())
                 .scope(DefaultEntityScope.NAME)
                 .state(EventDefinition.State.DISABLED)
                 .build();
@@ -205,7 +206,7 @@ public class EventDefinitionHandler {
 
     private boolean doDelete(String eventDefinitionId, Supplier<Boolean> deleteSupplier) {
         final Optional<EventDefinitionDto> optionalEventDefinition = eventDefinitionService.get(eventDefinitionId);
-        if (!optionalEventDefinition.isPresent()) {
+        if (optionalEventDefinition.isEmpty()) {
             return false;
         }
 
@@ -386,9 +387,9 @@ public class EventDefinitionHandler {
     }
 
     private void deleteNotificationJobTriggers(EventDefinitionDto eventDefinition) {
-        final DBQuery.Query query = DBQuery.and(
-                DBQuery.is("data.type", EventNotificationExecutionJob.TYPE_NAME),
-                DBQuery.is("data.event_dto.event_definition_id", eventDefinition.id()));
+        final Bson query = Filters.and(
+                Filters.eq("data.type", EventNotificationExecutionJob.TYPE_NAME),
+                Filters.eq("data.event_dto.event_definition_id", eventDefinition.id()));
 
         final int numberOfDeletedTriggers = jobTriggerService.deleteByQuery(query);
 
@@ -426,7 +427,7 @@ public class EventDefinitionHandler {
                                   JobDefinitionDto oldJobDefinition,
                                   EventProcessorSchedulerConfig schedulerConfig) {
         final Optional<JobTriggerDto> optionalOldJobTrigger = getJobTrigger(jobDefinition);
-        if (!optionalOldJobTrigger.isPresent()) {
+        if (optionalOldJobTrigger.isEmpty()) {
             // Nothing to do if there are no job triggers to update
             return;
         }
@@ -459,7 +460,7 @@ public class EventDefinitionHandler {
 
     private void deleteJobTrigger(JobDefinitionDto jobDefinition, EventDefinitionDto eventDefinition) {
         final Optional<JobTriggerDto> optionalJobTrigger = getJobTrigger(jobDefinition);
-        if (!optionalJobTrigger.isPresent()) {
+        if (optionalJobTrigger.isEmpty()) {
             return;
         }
 

@@ -18,8 +18,9 @@ import * as React from 'react';
 import { act, render, screen, waitFor } from 'wrappedTestingLibrary';
 import userEvent from '@testing-library/user-event';
 
-import type { SearchBarFormValues } from 'views/Constants';
 import { SearchQueryStrings } from '@graylog/server-api';
+
+import type { SearchBarFormValues } from 'views/Constants';
 import asMock from 'helpers/mocking/AsMock';
 import suppressConsole from 'helpers/suppressConsole';
 
@@ -40,6 +41,7 @@ const initialValues: SearchBarFormValues = {
   queryString: 'action:login',
   timerange: { type: 'relative', range: 300 },
   streams: [],
+  streamCategories: [],
 };
 
 const Wrapper = ({ onSubmit, values }: Props) => {
@@ -61,6 +63,7 @@ describe('useSearchBarSubmit', () => {
       queryString: ' http_method:POST ',
       streams: [],
       timerange: { type: 'relative', range: 60 },
+      streamCategories: [],
     };
     render(<Wrapper onSubmit={onSubmit} values={values} />);
 
@@ -81,6 +84,7 @@ describe('useSearchBarSubmit', () => {
       queryString: '  ',
       streams: [],
       timerange: { type: 'relative', range: 60 },
+      streamCategories: [],
     };
     render(<Wrapper onSubmit={onSubmit} values={values} />);
 
@@ -101,6 +105,7 @@ describe('useSearchBarSubmit', () => {
       queryString: ' action:login ',
       streams: [],
       timerange: { type: 'relative', range: 60 },
+      streamCategories: [],
     };
     render(<Wrapper onSubmit={onSubmit} values={values} />);
 
@@ -121,6 +126,7 @@ describe('useSearchBarSubmit', () => {
       queryString: ' http_method:POST ',
       streams: [],
       timerange: { type: 'relative', range: 60 },
+      streamCategories: [],
     };
     asMock(SearchQueryStrings.queryStringUsed).mockRejectedValue(new Error('Boom!'));
     render(<Wrapper onSubmit={onSubmit} values={values} />);

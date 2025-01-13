@@ -17,8 +17,10 @@
 import { render, screen } from 'wrappedTestingLibrary';
 import Immutable from 'immutable';
 import * as React from 'react';
+import type { PluginExports } from 'graylog-web-plugin/plugin';
 import { PluginManifest, PluginStore } from 'graylog-web-plugin/plugin';
 import { defaultUser } from 'defaultMockValues';
+import userEvent from '@testing-library/user-event';
 
 import AppConfig from 'util/AppConfig';
 import { asMock } from 'helpers/mocking';
@@ -26,6 +28,7 @@ import useCurrentUser from 'hooks/useCurrentUser';
 import { adminUser } from 'fixtures/users';
 import PerspectivesProvider from 'components/perspectives/contexts/PerspectivesProvider';
 import PerspectivesBindings from 'components/perspectives/bindings';
+import { examplePerspective } from 'fixtures/perspectives';
 
 import MainNavbar from './MainNavbar';
 
@@ -73,8 +76,30 @@ describe('MainNavbar', () => {
               { path: '/newpluginroute', description: 'New dropdown route', requiredFeatureFlag: 'enable_dropdown_nav_item' },
             ],
           },
+          {
+            description: 'Merged dropdown test',
+            path: '/',
+            children: [
+              { path: '/another-route', description: 'Menu item for general perspective' },
+            ],
+          },
+          {
+            description: 'Merged dropdown test',
+            path: '/',
+            children: [
+              { path: '/just-another-route', description: 'Merged item for general perspective' },
+            ],
+          },
+          {
+            description: 'Merged dropdown test',
+            path: '/',
+            perspective: examplePerspective.id,
+            children: [
+              { path: '/another-route', description: 'Menu item for specific perspective' },
+            ],
+          },
         ],
-      },
+      } as PluginExports,
     };
 
     beforeEach(() => {
@@ -93,11 +118,11 @@ describe('MainNavbar', () => {
       await screen.findByRole('link', { name: /perpetuum mobile/i });
     });
 
-    it('prefix plugin navigation item paths with app prefix', async () => {
+    it('does not prefix plugin navigation item paths with app prefix', async () => {
       asMock(AppConfig.gl2AppPathPrefix).mockReturnValue('/my/crazy/prefix');
       render(<SUT />);
 
-      expect(await screen.findByRole('link', { name: /perpetuum mobile/i })).toHaveAttribute('href', '/my/crazy/prefix/something');
+      expect(await screen.findByRole('link', { name: /perpetuum mobile/i })).toHaveAttribute('href', '/something');
     });
 
     it('does not contain navigation elements from plugins where permissions are missing', () => {
@@ -175,6 +200,25 @@ describe('MainNavbar', () => {
 
       await screen.findByRole('button', { name: /neat stuff \/ something else/i });
     });
+
+    it('should merge navigation dropdowns when their description is equal', async () => {
+      render(<SUT />);
+
+      userEvent.click(await screen.findByRole('button', { name: /Merged dropdown test/i }));
+
+      await screen.findByRole('menuitem', { name: /Menu item for general perspective/i });
+      await screen.findByRole('menuitem', { name: /Merged item for general perspective/i });
+    });
+
+    it('should not merge navigation dropdowns when their assigned perspective varies', async () => {
+      render(<SUT />);
+
+      userEvent.click(await screen.findByRole('button', { name: /Merged dropdown test/i }));
+
+      await screen.findByRole('menuitem', { name: /Menu item for general perspective/i });
+
+      expect(screen.queryByRole('menuitem', { name: /Menu item for specific perspective/i })).not.toBeInTheDocument();
+    });
   });
 
   describe('uses correct permissions:', () => {
@@ -195,7 +239,7 @@ describe('MainNavbar', () => {
 
       render(<SUT />);
 
-      expect(await screen.findByRole('link', { name: /enterprise/i })).toBeInTheDocument();
+      await screen.findByRole('link', { name: /enterprise/i });
     });
   });
 });

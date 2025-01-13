@@ -21,6 +21,7 @@ import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Provider;
+import jakarta.validation.constraints.NotNull;
 import org.graylog.plugins.views.search.Filter;
 import org.graylog.plugins.views.search.GlobalOverride;
 import org.graylog.plugins.views.search.Query;
@@ -45,6 +46,7 @@ import org.graylog.shaded.elasticsearch7.org.elasticsearch.action.search.MultiSe
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.action.search.SearchRequest;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.action.search.SearchResponse;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.action.support.IndicesOptions;
+import org.graylog.shaded.elasticsearch7.org.elasticsearch.action.support.PlainActionFuture;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.index.query.BoolQueryBuilder;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.index.query.QueryBuilder;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.index.query.QueryBuilders;
@@ -54,9 +56,11 @@ import org.graylog.storage.elasticsearch7.TimeRangeQueryFactory;
 import org.graylog.storage.elasticsearch7.views.searchtypes.ESSearchTypeHandler;
 import org.graylog2.indexer.ElasticsearchException;
 import org.graylog2.indexer.FieldTypeException;
+import org.graylog2.indexer.ranges.IndexRange;
 import org.graylog2.plugin.Message;
-import org.graylog2.plugin.Tools;
-import org.joda.time.DateTime;
+import org.graylog2.plugin.indexer.searches.timeranges.TimeRange;
+import org.graylog2.streams.StreamService;
+import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +74,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContext> {
     private static final Logger LOG = LoggerFactory.getLogger(ElasticsearchBackend.class);
@@ -82,6 +88,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
     private final UsedSearchFiltersToQueryStringsMapper usedSearchFiltersToQueryStringsMapper;
     private final boolean allowLeadingWildcard;
     private final StatsCollector<QueryExecutionStats> executionStatsCollector;
+    private final StreamService streamService;
 
     @Inject
     public ElasticsearchBackend(Map<String, Provider<ESSearchTypeHandler<? extends SearchType>>> elasticsearchSearchTypeHandlers,
@@ -90,6 +97,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                                 ESGeneratedQueryContext.Factory queryContextFactory,
                                 UsedSearchFiltersToQueryStringsMapper usedSearchFiltersToQueryStringsMapper,
                                 StatsCollector<QueryExecutionStats> executionStatsCollector,
+                                StreamService streamService,
                                 @Named("allow_leading_wildcard_searches") boolean allowLeadingWildcard) {
         this.elasticsearchSearchTypeHandlers = elasticsearchSearchTypeHandlers;
         this.client = client;
@@ -98,6 +106,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
         this.queryContextFactory = queryContextFactory;
         this.usedSearchFiltersToQueryStringsMapper = usedSearchFiltersToQueryStringsMapper;
         this.executionStatsCollector = executionStatsCollector;
+        this.streamService = streamService;
         this.allowLeadingWildcard = allowLeadingWildcard;
     }
 
@@ -114,7 +123,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
 
     @WithSpan
     @Override
-    public ESGeneratedQueryContext generate(Query query, Set<SearchError> validationErrors) {
+    public ESGeneratedQueryContext generate(Query query, Set<SearchError> validationErrors, DateTimeZone timezone) {
         final BackendQuery backendQuery = query.query();
 
         final Set<SearchType> searchTypes = query.searchTypes();
@@ -139,9 +148,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                 .trackTotalHits(true);
 
 
-        final DateTime nowUTCSharedBetweenSearchTypes = Tools.nowUTC();
-
-        final ESGeneratedQueryContext queryContext = queryContextFactory.create(this, searchSourceBuilder, validationErrors);
+        final ESGeneratedQueryContext queryContext = queryContextFactory.create(this, searchSourceBuilder, validationErrors, timezone);
         searchTypes.stream()
                 .filter(searchType -> !isSearchTypeWithError(queryContext, searchType.id()))
                 .forEach(searchType -> {
@@ -162,7 +169,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                             .must(
                                     Objects.requireNonNull(
                                             TimeRangeQueryFactory.create(
-                                                    query.effectiveTimeRange(searchType, nowUTCSharedBetweenSearchTypes)
+                                                    query.effectiveTimeRange(searchType)
                                             ),
                                             "Timerange for search type " + searchType.id() + " cannot be found in query or search type."
                                     )
@@ -217,6 +224,16 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
         return Optional.empty();
     }
 
+    @Override
+    public Set<IndexRange> indexRangesForStreamsInTimeRange(Set<String> streamIds, TimeRange timeRange) {
+        return indexLookup.indexRangesForStreamsInTimeRange(streamIds, timeRange);
+    }
+
+    @Override
+    public Optional<String> streamTitle(String streamId) {
+        return Optional.ofNullable(streamService.streamTitleFromCache(streamId));
+    }
+
     @WithSpan
     @Override
     public QueryResult doRun(SearchJob job, Query query, ESGeneratedQueryContext queryContext) {
@@ -242,8 +259,8 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                             .filter(s -> s.id().equalsIgnoreCase(searchTypeId)).findFirst()
                             .flatMap(searchType -> {
                                 if (searchType.effectiveStreams().isEmpty()
-                                        && !query.globalOverride().flatMap(GlobalOverride::timerange).isPresent()
-                                        && !searchType.timerange().isPresent()) {
+                                        && query.globalOverride().flatMap(GlobalOverride::timerange).isEmpty()
+                                        && searchType.timerange().isEmpty()) {
                                     return Optional.empty();
                                 }
                                 return Optional.of(indexLookup.indexNamesForStreamsInTimeRange(query.effectiveStreams(searchType), query.effectiveTimeRange(searchType)));
@@ -256,9 +273,12 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                             .indices(indices.toArray(new String[0]))
                             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
                 })
-                .collect(Collectors.toList());
+                .toList();
 
-        final List<MultiSearchResponse.Item> results = client.msearch(searches, "Unable to perform search query: ");
+        //ES does not support per-request cancel_after_time_interval. We have to use simplified solution - the whole multi-search will be cancelled if it takes more than configured max. exec. time.
+        final PlainActionFuture<MultiSearchResponse> mSearchFuture = client.cancellableMsearch(searches);
+        job.setQueryExecutionFuture(query.id(), mSearchFuture);
+        final List<MultiSearchResponse.Item> results = getResults(mSearchFuture, job.getCancelAfterSeconds(), searches.size());
 
         for (SearchType searchType : query.searchTypes()) {
             final String searchTypeId = searchType.id();
@@ -307,6 +327,21 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                 .build();
     }
 
+    @NotNull
+    private static List<MultiSearchResponse.Item> getResults(PlainActionFuture<MultiSearchResponse> mSearchFuture,
+                                                             final Integer cancelAfterSeconds,
+                                                             final int numSearchTypes) {
+        try {
+            if (!SearchJob.NO_CANCELLATION.equals(cancelAfterSeconds)) {
+                return Arrays.asList(mSearchFuture.get(cancelAfterSeconds, TimeUnit.SECONDS).getResponses());
+            } else {
+                return Arrays.asList(mSearchFuture.get().getResponses());
+            }
+        } catch (TimeoutException | InterruptedException | ExecutionException e) {
+            return Collections.nCopies(numSearchTypes, new MultiSearchResponse.Item(null, e));
+        }
+    }
+
     private Optional<ElasticsearchException> checkForFailedShards(MultiSearchResponse.Item multiSearchResponse) {
         if (multiSearchResponse.isFailure()) {
             return Optional.of(new ElasticsearchException(multiSearchResponse.getFailureMessage(), multiSearchResponse.getFailure()));
@@ -316,13 +351,13 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
         if (searchResponse != null && searchResponse.getFailedShards() > 0) {
             final List<Throwable> shardFailures = Arrays.stream(searchResponse.getShardFailures())
                     .map(ShardOperationFailedException::getCause)
-                    .collect(Collectors.toList());
+                    .toList();
             final List<String> nonNumericFieldErrors = shardFailures
                     .stream()
-                    .filter(shardFailure -> shardFailure.getMessage().contains("Expected numeric type on field"))
                     .map(Throwable::getMessage)
+                    .filter(message -> message.contains("Expected numeric type on field"))
                     .distinct()
-                    .collect(Collectors.toList());
+                    .toList();
             if (!nonNumericFieldErrors.isEmpty()) {
                 return Optional.of(new FieldTypeException("Unable to perform search query: ", nonNumericFieldErrors));
             }
@@ -331,7 +366,7 @@ public class ElasticsearchBackend implements QueryBackend<ESGeneratedQueryContex
                     .stream()
                     .map(Throwable::getMessage)
                     .distinct()
-                    .collect(Collectors.toList());
+                    .toList();
             return Optional.of(new ElasticsearchException("Unable to perform search query: ", errors));
         }
 

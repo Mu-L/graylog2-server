@@ -15,7 +15,6 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import React, { createContext, useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import PropTypes from 'prop-types';
 
 import type { RuleType } from 'stores/rules/RulesStore';
 import { RulesActions } from 'stores/rules/RulesStore';
@@ -28,6 +27,23 @@ let VALIDATE_TIMEOUT;
 export const DEFAULT_SIMULATOR_JSON_MESSAGE = 'message: test\nsource: unknown\n';
 
 export const PipelineRulesContext = createContext(undefined);
+
+export enum SimulationFieldType {
+  Simple = 'Simple',
+  KeyValue = 'KeyValue',
+  JSON = 'JSON',
+}
+
+const getMessageToSimulate = (rawMessage: string, messageType: SimulationFieldType) => {
+  switch (messageType) {
+    case SimulationFieldType.JSON:
+    case SimulationFieldType.KeyValue:
+      return jsonifyText(rawMessage);
+    case SimulationFieldType.Simple:
+    default:
+      return JSON.stringify({ message: rawMessage });
+  }
+};
 
 const savePipelineRule = (nextRule: RuleType, callback: (rule: RuleType) => void = () => {}, onError: (error: object) => void = () => {}) => {
   let promise;
@@ -43,16 +59,16 @@ const savePipelineRule = (nextRule: RuleType, callback: (rule: RuleType) => void
 
 type Props = {
   children: React.ReactNode,
-  usedInPipelines: Array<string>,
-  rule: RuleType,
+  usedInPipelines?: Array<string>
+  rule?: RuleType
 }
 
-export const PipelineRulesProvider = ({ children, usedInPipelines, rule }: Props) => {
+export const PipelineRulesProvider = ({ children, usedInPipelines = [], rule }: Props) => {
   const ruleSourceRef = useRef(undefined);
   const [, setAceLoaded] = useState(false);
   const [ruleSource, setRuleSource] = useState(rule?.source);
   const [description, setDescription] = useState(rule?.description);
-  const [rawMessageToSimulate, setRawMessageToSimulate] = useState(DEFAULT_SIMULATOR_JSON_MESSAGE);
+  const [rawMessageToSimulate, setRawMessageToSimulate] = useState('');
   const [ruleSimulationResult, setRuleSimulationResult] = useState(null);
 
   useEffect(() => {
@@ -83,8 +99,8 @@ export const PipelineRulesProvider = ({ children, usedInPipelines, rule }: Props
     RulesActions.parse(nextRule, callback);
   }, [rule, description, rawMessageToSimulate]);
 
-  const simulateRule = useCallback((_rule: RuleType, messageString: string = rawMessageToSimulate, callback: React.Dispatch<any> | (() => void) = setRuleSimulationResult) => {
-    const messageToSimulate = jsonifyText(messageString);
+  const simulateRule = useCallback((_rule: RuleType, simulationType: SimulationFieldType, messageString: string = rawMessageToSimulate, callback: React.Dispatch<any> | (() => void) = setRuleSimulationResult) => {
+    const messageToSimulate = getMessageToSimulate(messageString, simulationType);
     RulesActions.simulate(messageToSimulate, _rule, callback);
   }, [rawMessageToSimulate, setRuleSimulationResult]);
 
@@ -165,25 +181,4 @@ export const PipelineRulesProvider = ({ children, usedInPipelines, rule }: Props
       {children}
     </PipelineRulesContext.Provider>
   );
-};
-
-PipelineRulesProvider.propTypes = {
-  children: PropTypes.node.isRequired,
-  usedInPipelines: PropTypes.array,
-  rule: PropTypes.shape({
-    id: PropTypes.string,
-    title: PropTypes.string,
-    description: PropTypes.string,
-    source: PropTypes.string,
-    simulator_message: PropTypes.string,
-  }),
-};
-
-PipelineRulesProvider.defaultProps = {
-  usedInPipelines: [],
-  rule: {
-    description: '',
-    source: '',
-    simulator_message: DEFAULT_SIMULATOR_JSON_MESSAGE,
-  },
 };

@@ -21,7 +21,7 @@ import UserNotification from 'util/UserNotification';
 import { ConfirmDialog, IfPermitted, ShareButton } from 'components/common';
 import { LinkContainer } from 'components/common/router';
 import Routes from 'routing/Routes';
-import { MenuItem, ButtonToolbar } from 'components/bootstrap';
+import { MenuItem, ButtonToolbar, DeleteMenuItem } from 'components/bootstrap';
 import type { EventNotification } from 'stores/event-notifications/EventNotificationsStore';
 import { EventNotificationsActions } from 'stores/event-notifications/EventNotificationsStore';
 import EntityShareModal from 'components/permissions/EntityShareModal';
@@ -30,16 +30,17 @@ import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
 import { getPathnameWithoutId } from 'util/URLUtils';
 import useLocation from 'routing/useLocation';
 import useSelectedEntities from 'components/common/EntityDataTable/hooks/useSelectedEntities';
-import MoreActions from 'components/common/EntityDataTable/MoreActions';
+import { MoreActions } from 'components/common/EntityDataTable';
+import { useTableFetchContext } from 'components/common/PaginatedEntityTable';
 
 type Props = {
   isTestLoading: boolean,
   notification: EventNotification,
   onTest: (notification: EventNotification) => void,
-  refetchEventNotification: () => void,
 };
 
-const EventNotificationActions = ({ isTestLoading, notification, refetchEventNotification, onTest }: Props) => {
+const EventNotificationActions = ({ isTestLoading, notification, onTest }: Props) => {
+  const { refetch: refetchEventNotification } = useTableFetchContext();
   const { deselectEntity } = useSelectedEntities();
   const [showDialog, setShowDialog] = useState(false);
   const [showShareNotification, setShowShareNotification] = useState(undefined);
@@ -104,7 +105,7 @@ const EventNotificationActions = ({ isTestLoading, notification, refetchEventNot
             </IfPermitted>
             <MenuItem divider />
             <IfPermitted permissions={`eventnotifications:delete:${notification.id}`}>
-              <MenuItem onClick={onDelete} variant="danger">Delete</MenuItem>
+              <DeleteMenuItem onClick={onDelete} />
             </IfPermitted>
           </IfPermitted>
         </MoreActions>

@@ -18,27 +18,26 @@ package org.graylog.plugins.beats;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.assistedinject.Assisted;
+import jakarta.inject.Inject;
 import org.graylog2.jackson.TypeReferences;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.MessageFactory;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.inputs.annotations.Codec;
 import org.graylog2.plugin.inputs.annotations.ConfigClass;
 import org.graylog2.plugin.inputs.annotations.FactoryClass;
 import org.graylog2.plugin.inputs.codecs.AbstractCodec;
+import org.graylog2.plugin.inputs.failure.InputProcessingException;
 import org.graylog2.plugin.journal.RawMessage;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
-
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -48,29 +47,27 @@ public class BeatsCodec extends AbstractCodec {
     private static final String MAP_KEY_SEPARATOR = "_";
 
     private final ObjectMapper objectMapper;
+    private final MessageFactory messageFactory;
 
     @Inject
-    public BeatsCodec(@Assisted Configuration configuration, ObjectMapper objectMapper) {
+    public BeatsCodec(@Assisted Configuration configuration, ObjectMapper objectMapper, MessageFactory messageFactory) {
         super(configuration);
         this.objectMapper = requireNonNull(objectMapper);
+        this.messageFactory = messageFactory;
     }
 
-    @Nullable
     @Override
-    public Message decode(@Nonnull RawMessage rawMessage) {
-        final byte[] payload = rawMessage.getPayload();
-        final Map<String, Object> event;
+    public Optional<Message> decodeSafe(@Nonnull RawMessage rawMessage) {
         try {
-            event = objectMapper.readValue(payload, TypeReferences.MAP_STRING_OBJECT);
-        } catch (IOException e) {
-            LOG.error("Couldn't decode raw message {}", rawMessage);
-            return null;
+            final byte[] payload = rawMessage.getPayload();
+            return Optional.of(parseEvent(objectMapper.readValue(payload, TypeReferences.MAP_STRING_OBJECT)));
+        } catch (Exception e) {
+            throw InputProcessingException.create("Couldn't decode beats message",
+                    e, rawMessage, new String(rawMessage.getPayload(), charset));
         }
-
-        return parseEvent(event);
     }
 
-    @Nullable
+    @Nonnull
     private Message parseEvent(Map<String, Object> event) {
         @SuppressWarnings("unchecked")
         final Map<String, String> metadata = (HashMap<String, String>) event.remove("@metadata");
@@ -124,7 +121,7 @@ public class BeatsCodec extends AbstractCodec {
         final String type = String.valueOf(event.get("type"));
         final Object tags = event.get("tags");
 
-        final Message result = new Message(message, hostname, timestamp);
+        final Message result = messageFactory.createMessage(message, hostname, timestamp);
         result.addField("name", name);
         result.addField("type", type);
         result.addField("tags", tags);

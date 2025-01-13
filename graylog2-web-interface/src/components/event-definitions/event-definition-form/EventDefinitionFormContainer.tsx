@@ -15,12 +15,9 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
 import { PluginStore } from 'graylog-web-plugin/plugin';
 import cloneDeep from 'lodash/cloneDeep';
 
-import Routes from 'routing/Routes';
 import { useStore } from 'stores/connect';
 import EventDefinitionPriorityEnum from 'logic/alerts/EventDefinitionPriorityEnum';
 import { ConfirmLeaveDialog, Spinner } from 'components/common';
@@ -28,8 +25,7 @@ import { AvailableEventDefinitionTypesStore } from 'stores/event-definitions/Ava
 import { ConfigurationsActions } from 'stores/configurations/ConfigurationsStore';
 import { EventDefinitionsActions } from 'stores/event-definitions/EventDefinitionsStore';
 import { EventNotificationsActions, EventNotificationsStore } from 'stores/event-notifications/EventNotificationsStore';
-import 'components/event-notifications/event-notification-types';
-import type { EventDefinition } from 'components/event-definitions/event-definitions-types';
+import type { EventDefinition, EventDefinitionFormControlsProps } from 'components/event-definitions/event-definitions-types';
 import useCurrentUser from 'hooks/useCurrentUser';
 import useEventDefinitionConfigFromLocalStorage from 'components/event-definitions/hooks/useEventDefinitionConfigFromLocalStorage';
 import { getPathnameWithoutId } from 'util/URLUtils';
@@ -38,16 +34,21 @@ import useLocation from 'routing/useLocation';
 import { TELEMETRY_EVENT_TYPE } from 'logic/telemetry/Constants';
 import useScopePermissions from 'hooks/useScopePermissions';
 
-import EventDefinitionForm from './EventDefinitionForm';
+import EventDefinitionForm, { STEP_KEYS } from './EventDefinitionForm';
 
 const fetchNotifications = () => {
   EventNotificationsActions.listAll();
 };
 
 type Props = {
-  action: 'edit' | 'create',
-  eventDefinition: EventDefinition,
-  onEventDefinitionChange: (nextEventDefinition: EventDefinition) => void,
+  action?: 'edit' | 'create'
+  eventDefinition?: EventDefinition
+  formControls?: React.ComponentType<EventDefinitionFormControlsProps>,
+  initialStep?: string,
+  onCancel?: () => void
+  onChangeStep?: (step: string) => void,
+  onEventDefinitionChange?: (nextEventDefinition: EventDefinition) => void
+  onSubmit?: () => void,
 }
 
 const getConditionPlugin = (edType): any => {
@@ -58,7 +59,32 @@ const getConditionPlugin = (edType): any => {
   return PluginStore.exports('eventDefinitionTypes').find((eventDefinitionType) => eventDefinitionType.type === edType) || {};
 };
 
-const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinitionInitial, onEventDefinitionChange }: Props) => {
+const EventDefinitionFormContainer = ({
+  action = 'edit',
+  eventDefinition: eventDefinitionInitial = {
+    title: '',
+    description: '',
+    priority: EventDefinitionPriorityEnum.MEDIUM,
+    // @ts-ignore
+    config: {},
+    field_spec: {},
+    key_spec: [],
+    notification_settings: {
+      grace_period_ms: 300000,
+      // Defaults to system setting for notification backlog size
+      backlog_size: null,
+    },
+    notifications: [],
+    alert: false,
+  },
+  formControls = undefined,
+  initialStep = STEP_KEYS[0],
+  onCancel = undefined,
+  onChangeStep = undefined,
+  onEventDefinitionChange = () => {},
+  onSubmit = undefined,
+}: Props) => {
+  const [activeStep, setActiveStep] = useState(initialStep);
   const [eventDefinition, setEventDefinition] = useState(eventDefinitionInitial);
   const [validation, setValidation] = useState({ errors: {} });
   const [eventsClusterConfig, setEventsClusterConfig] = useState(undefined);
@@ -69,7 +95,6 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
   const entityTypes = useStore(AvailableEventDefinitionTypesStore);
   const notifications = useStore(EventNotificationsStore);
   const currentUser = useCurrentUser();
-  const navigate = useNavigate();
   const { pathname } = useLocation();
   const sendTelemetry = useSendTelemetry();
 
@@ -111,7 +136,13 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
 
   const handleSubmitSuccessResponse = () => {
     setIsDirty(false);
-    navigate(Routes.ALERTS.DEFINITIONS.LIST);
+
+    onSubmit();
+  };
+
+  const showValidationErrors = (errors: { errors: unknown }) => {
+    setValidation(errors);
+    setActiveStep(STEP_KEYS[STEP_KEYS.length - 1]);
   };
 
   const handleSubmitFailureResponse = (errorResponse) => {
@@ -119,7 +150,7 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
 
     if (errorResponse.status === 400) {
       if (body && body.failed) {
-        setValidation(body);
+        showValidationErrors(body);
 
         return;
       }
@@ -128,7 +159,7 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
         if (body.message.includes('org.graylog.events.conditions.Expression')
           || body.message.includes('org.graylog.events.conditions.Expr')
           || body.message.includes('org.graylog.events.processor.aggregation.AggregationSeries')) {
-          setValidation({
+          showValidationErrors({
             errors: { conditions: ['Aggregation condition is not valid'] },
           });
 
@@ -136,7 +167,7 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
         }
 
         if (body.message.includes('embryonic')) {
-          setValidation({
+          showValidationErrors({
             errors: { query_parameters: ['Query parameters must be declared'] },
           });
         }
@@ -145,6 +176,8 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
   };
 
   const handleSubmit = () => {
+    setIsDirty(false);
+
     if (action === 'create') {
       sendTelemetry(TELEMETRY_EVENT_TYPE.EVENTDEFINITION_SUMMARY.CREATE_CLICKED, {
         app_pathname: getPathnameWithoutId(pathname),
@@ -173,7 +206,12 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
       app_action_value: 'cancel-button',
     });
 
-    navigate(Routes.ALERTS.DEFINITIONS.LIST);
+    onCancel();
+  };
+
+  const changeStep = (step: string) => {
+    onChangeStep?.(step);
+    setActiveStep(step);
   };
 
   if (isLoading || loadingScopePermissions) {
@@ -186,44 +224,21 @@ const EventDefinitionFormContainer = ({ action, eventDefinition: eventDefinition
         <ConfirmLeaveDialog question="Do you really want to abandon this page and lose your changes? This action cannot be undone." />
       )}
       <EventDefinitionForm action={action}
-                           eventDefinition={eventDefinition}
+                           canEdit={scopePermissions.is_mutable}
                            currentUser={currentUser}
-                           validation={validation}
-                           entityTypes={entityTypes}
-                           notifications={notifications.all}
                            defaults={defaults}
-                           onChange={handleChange}
+                           activeStep={activeStep}
+                           entityTypes={entityTypes}
+                           eventDefinition={eventDefinition}
+                           formControls={formControls}
+                           notifications={notifications.all}
                            onCancel={handleCancel}
+                           onChange={handleChange}
+                           onChangeStep={changeStep}
                            onSubmit={handleSubmit}
-                           canEdit={scopePermissions.is_mutable} />
+                           validation={validation} />
     </>
   );
-};
-
-EventDefinitionFormContainer.propTypes = {
-  action: PropTypes.oneOf(['create', 'edit']),
-  eventDefinition: PropTypes.object,
-  onEventDefinitionChange: PropTypes.func,
-};
-
-EventDefinitionFormContainer.defaultProps = {
-  action: 'edit',
-  eventDefinition: {
-    title: '',
-    description: '',
-    priority: EventDefinitionPriorityEnum.NORMAL,
-    config: {},
-    field_spec: {},
-    key_spec: [],
-    notification_settings: {
-      grace_period_ms: 300000,
-      // Defaults to system setting for notification backlog size
-      backlog_size: null,
-    },
-    notifications: [],
-    alert: false,
-  },
-  onEventDefinitionChange: () => {},
 };
 
 export default EventDefinitionFormContainer;

@@ -36,6 +36,8 @@ type LabelProps = {
   value: number,
 }
 
+const PERCENTAGE_SPACING_THRESHOLD = 20;
+
 const VisualisationWrapper = styled.div(({ theme }) => css`
   padding-left: ${theme.spacings.md};
   padding-right: ${theme.spacings.md};
@@ -97,11 +99,11 @@ const Label = styled.div<LabelProps>(({ value }) => css`
     : 'left: 0;'}
 `);
 
-const StyledTooltip = styled(Tooltip)(({ value }) => css`
+const StyledTooltip = styled(Tooltip)<{ value: number }>(({ value }) => css`
   position: absolute;
   top: 0;
   
-  ${value > 12
+  ${value > PERCENTAGE_SPACING_THRESHOLD
     ? `
   right: ${100 - value}%;
 
@@ -115,7 +117,7 @@ const StyledTooltip = styled(Tooltip)(({ value }) => css`
   `}    
 `);
 
-const DataTieringVisualisation = ({ archiveData, minDays, maxDays, minDaysInHot, warmTierEnabled }: Props) => {
+const DataTieringVisualisation = ({ archiveData = false, minDays = 0, maxDays = 0, minDaysInHot = 0, warmTierEnabled = false }: Props) => {
   const [showMinDaysTooltip, setShowMinDaysTooltip] = useState<boolean>(false);
   const [showMinDaysInHotTooltip, setShowMinDaysInHotTooltip] = useState<boolean>(false);
   const theme = useTheme();
@@ -158,14 +160,14 @@ const DataTieringVisualisation = ({ archiveData, minDays, maxDays, minDaysInHot,
             minDaysInHotPercentage === minDaysPercentage ? (
               <StyledTooltip placement="bottom"
                              id="min-days-in-hot-and-storage"
-                             arrowOffsetLeft={minDaysInHotPercentage <= 12 ? '10px' : '100%'}
+                             arrowOffsetLeft={minDaysInHotPercentage <= PERCENTAGE_SPACING_THRESHOLD ? '10px' : '100%'}
                              value={minDaysInHotPercentage}>
                 Min. # of days in Hot Tier and storage
               </StyledTooltip>
             ) : (
               <StyledTooltip placement="bottom"
                              id="min-days-in-hot"
-                             arrowOffsetLeft={minDaysInHotPercentage <= 12 ? '10px' : '100%'}
+                             arrowOffsetLeft={minDaysInHotPercentage <= PERCENTAGE_SPACING_THRESHOLD ? '10px' : '100%'}
                              value={minDaysInHotPercentage}>
                 Min. # of days in Hot Tier
               </StyledTooltip>
@@ -174,7 +176,7 @@ const DataTieringVisualisation = ({ archiveData, minDays, maxDays, minDaysInHot,
           {minDaysPercentage > 0 && showMinDaysTooltip && (
             <StyledTooltip placement="bottom"
                            id="min-days-in-storage"
-                           arrowOffsetLeft={minDaysPercentage <= 12 ? '10px' : '100%'}
+                           arrowOffsetLeft={minDaysPercentage <= PERCENTAGE_SPACING_THRESHOLD ? '10px' : '100%'}
                            value={minDaysPercentage}>
               Min. # of days in storage
             </StyledTooltip>
@@ -187,11 +189,3 @@ const DataTieringVisualisation = ({ archiveData, minDays, maxDays, minDaysInHot,
 };
 
 export default DataTieringVisualisation;
-
-DataTieringVisualisation.defaultProps = {
-  minDays: 0,
-  maxDays: 0,
-  minDaysInHot: 0,
-  warmTierEnabled: false,
-  archiveData: false,
-};

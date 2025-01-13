@@ -19,8 +19,9 @@ import { act, render, screen, within, waitFor } from 'wrappedTestingLibrary';
 import userEvent from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
 
-import fetch from 'logic/rest/FetchProvider';
 import { Streams } from '@graylog/server-api';
+
+import fetch from 'logic/rest/FetchProvider';
 import UserNotification from 'util/UserNotification';
 import BulkActions from 'components/streams/StreamsOverview/BulkActions';
 import { indexSets } from 'fixtures/indexSets';
@@ -48,6 +49,7 @@ describe('StreamsOverview BulkActionsRow', () => {
     setSelectedEntities: () => {},
     selectEntity: () => {},
     deselectEntity: () => {},
+    toggleEntitySelect: () => {},
   };
 
   const openActionsDropdown = async () => userEvent.click(await screen.findByRole('button', {

@@ -20,6 +20,17 @@ import com.google.common.eventbus.EventBus;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.validation.ValidationException;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.graylog.plugins.views.search.Search;
 import org.graylog.plugins.views.search.SearchJob;
@@ -42,20 +53,6 @@ import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.shared.utilities.StringUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-
-import jakarta.inject.Inject;
-
-import jakarta.validation.Valid;
-import jakarta.validation.ValidationException;
-
-import jakarta.ws.rs.BadRequestException;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
 
 import java.util.List;
 import java.util.Set;
@@ -105,7 +102,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
             Search search = searchCreator.mapToSearch(messagesRequestSpec, searchUser);
 
             //Step 2: execute search as we usually do
-            final SearchJob searchJob = searchExecutor.execute(search, searchUser, ExecutionState.empty());
+            final SearchJob searchJob = searchExecutor.executeSync(search, searchUser, ExecutionState.empty());
             postAuditEvent(searchJob);
 
             //Step 3: take complex response and try to map it to simpler, tabular form
@@ -122,6 +119,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
     @NoAuditEvent("Creating audit event manually in method body.")
     public TabularResponse executeQuery(@ApiParam(name = "query") @QueryParam("query") String query,
                                         @ApiParam(name = "streams") @QueryParam("streams") Set<String> streams,
+                                        @ApiParam(name = "stream_categories") @QueryParam("stream_categories") Set<String> streamCategories,
                                         @ApiParam(name = "timerange") @QueryParam("timerange") String timerangeKeyword,
                                         @ApiParam(name = "fields") @QueryParam("fields") List<String> fields,
                                         @ApiParam(name = "sort") @QueryParam("sort") String sort,
@@ -133,6 +131,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
         try {
             MessagesRequestSpec messagesRequestSpec = queryParamsToFullRequestSpecificationMapper.simpleQueryParamsToFullRequestSpecification(query,
                     splitByComma(streams),
+                    splitByComma(streamCategories),
                     timerangeKeyword,
                     splitByComma(fields),
                     sort,
@@ -158,7 +157,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
             Search search = searchCreator.mapToSearch(aggregationRequestSpec, searchUser);
 
             //Step 2: execute search as we usually do
-            final SearchJob searchJob = searchExecutor.execute(search, searchUser, ExecutionState.empty());
+            final SearchJob searchJob = searchExecutor.executeSync(search, searchUser, ExecutionState.empty());
             postAuditEvent(searchJob);
 
             //Step 3: take complex response and try to map it to simpler, tabular form
@@ -174,6 +173,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
     @NoAuditEvent("Creating audit event manually in method body.")
     public TabularResponse executeQuery(@ApiParam(name = "query") @QueryParam("query") String query,
                                         @ApiParam(name = "streams") @QueryParam("streams") Set<String> streams,
+                                        @ApiParam(name = "stream_categories") @QueryParam("stream_categories") Set<String> streamCategories,
                                         @ApiParam(name = "timerange") @QueryParam("timerange") String timerangeKeyword,
                                         @ApiParam(name = "groups") @QueryParam("groups") List<String> groups,
                                         @ApiParam(name = "metrics") @QueryParam("metrics") List<String> metrics,
@@ -182,6 +182,7 @@ public class ScriptingApiResource extends RestResource implements PluginRestReso
             AggregationRequestSpec aggregationRequestSpec = queryParamsToFullRequestSpecificationMapper.simpleQueryParamsToFullRequestSpecification(
                     query,
                     StringUtils.splitByComma(streams),
+                    StringUtils.splitByComma(streamCategories),
                     timerangeKeyword,
                     splitByComma(groups),
                     splitByComma(metrics)

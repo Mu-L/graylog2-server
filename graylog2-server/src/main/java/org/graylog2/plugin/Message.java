@@ -19,6 +19,7 @@ package org.graylog2.plugin;
 import com.codahale.metrics.Meter;
 import com.eaio.uuid.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.CharMatcher;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
@@ -40,6 +41,7 @@ import org.graylog2.indexer.messages.Indexable;
 import org.graylog2.plugin.streams.Stream;
 import org.graylog2.plugin.utilities.date.DateTimeConverter;
 import org.graylog2.plugin.utilities.ratelimitedlog.RateLimitedLogFactory;
+import org.graylog2.shared.messageq.Acknowledgeable;
 import org.graylog2.shared.utilities.ExceptionUtils;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
@@ -63,9 +65,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.google.common.base.CharMatcher.anyOf;
+import static com.google.common.base.CharMatcher.inRange;
 import static com.google.common.base.Predicates.equalTo;
 import static com.google.common.base.Predicates.not;
 import static org.graylog.schema.GraylogSchemaFields.FIELD_ILLUMINATE_EVENT_CATEGORY;
@@ -84,7 +87,7 @@ import static org.graylog2.plugin.Tools.buildElasticSearchTimeFormat;
 import static org.joda.time.DateTimeZone.UTC;
 
 @NotThreadSafe
-public class Message implements Messages, Indexable {
+public class Message implements Messages, Indexable, Acknowledgeable {
     private static final Logger LOG = LoggerFactory.getLogger(Message.class);
     private static final Logger RATE_LIMITED_LOG = RateLimitedLogFactory.createRateLimitedLog(LOG, 3, Duration.ofMinutes(1));
 
@@ -131,6 +134,12 @@ public class Message implements Messages, Indexable {
      * See: <a href="https://github.com/Graylog2/graylog2-server/issues/5994">...</a>
      */
     public static final String FIELD_GL2_MESSAGE_ID = "gl2_message_id";
+
+    /**
+     * Not a field, but an alias to the field we automatically use to determine the second sort order.
+     * This currently points to {@code gl2_message_id}.
+     */
+    public static final String GL2_SECOND_SORT_FIELD = "gl2_second_sort_field";
 
     /**
      * Can be set to indicate a message processing error. (e.g. set by the pipeline interpreter when an error occurs)
@@ -209,10 +218,9 @@ public class Message implements Messages, Indexable {
     public static final String FIELD_GL2_SOURCE_RADIO_INPUT = "gl2_source_radio_input";
 
     // Matches whole field names containing a-z, A-Z, 0-9, period char, -, or @.
-    private static final Pattern VALID_KEY_CHARS = Pattern.compile("^[\\w\\.\\-@]*$");
-    // Same as above, but matches only the invalid (non-indicated) characters.
-    // [^ ... ] around the pattern inverts the match.
-    private static final Pattern INVALID_KEY_CHARS = Pattern.compile("[^\\w\\.\\-@]");
+    private static final CharMatcher VALID_KEY_CHAR_MATCHER = inRange('a', 'z').or(inRange('A', 'Z')).or(inRange('0', '9')).or(anyOf(".@-_")).precomputed();
+    private static final CharMatcher INVALID_KEY_CHAR_MATCHER = VALID_KEY_CHAR_MATCHER.negate().precomputed();
+
     private static final char KEY_REPLACEMENT_CHAR = '_';
 
     private static final ImmutableSet<String> GRAYLOG_FIELDS = ImmutableSet.of(
@@ -251,7 +259,9 @@ public class Message implements Messages, Indexable {
     private static final ImmutableSet<String> CORE_MESSAGE_FIELDS = ImmutableSet.of(
             FIELD_MESSAGE,
             FIELD_SOURCE,
-            FIELD_TIMESTAMP
+            FIELD_TIMESTAMP,
+            FIELD_GL2_MESSAGE_ID,
+            GL2_SECOND_SORT_FIELD
     );
 
     private static final ImmutableSet<String> ES_FIELDS = ImmutableSet.of(
@@ -273,7 +283,6 @@ public class Message implements Messages, Indexable {
             .build();
     public static final ImmutableSet<String> FIELDS_UNCHANGEABLE_BY_CUSTOM_MAPPINGS = new ImmutableSet.Builder<String>()
             .addAll(RESERVED_SETTABLE_FIELDS)
-            .add(FIELD_GL2_MESSAGE_ID)
             .add(FIELD_STREAMS)
             .add(FIELD_FAILED_MESSAGE_STREAMS)
             .build();
@@ -359,18 +368,21 @@ public class Message implements Messages, Indexable {
         classSizes.put(ZonedDateTime.class, 8);
     }
 
-    public Message(final String message, final String source, final DateTime timestamp) {
+    // Intentionally package-private to enforce MessageFactory usage.
+    Message(final String message, final String source, final DateTime timestamp) {
         fields.put(FIELD_ID, new UUID().toString());
         addRequiredField(FIELD_MESSAGE, message);
         addRequiredField(FIELD_SOURCE, source);
         addRequiredField(FIELD_TIMESTAMP, timestamp);
     }
 
-    public Message(final Map<String, Object> fields) {
+    // Intentionally package-private to enforce MessageFactory usage.
+    Message(final Map<String, Object> fields) {
         this((String) fields.get(FIELD_ID), Maps.filterKeys(fields, not(equalTo(FIELD_ID))));
     }
 
-    private Message(String id, Map<String, Object> newFields) {
+    // Intentionally package-private to enforce MessageFactory usage.
+    Message(String id, Map<String, Object> newFields) {
         Preconditions.checkArgument(id != null, "message id cannot be null");
         fields.put(FIELD_ID, id);
         addFields(newFields);
@@ -641,11 +653,11 @@ public class Message implements Messages, Indexable {
     }
 
     public static boolean validKey(final String key) {
-        return VALID_KEY_CHARS.matcher(key).matches();
+        return VALID_KEY_CHAR_MATCHER.matchesAllOf(key);
     }
 
     public static String cleanKey(final String key) {
-        return INVALID_KEY_CHARS.matcher(key).replaceAll(String.valueOf(KEY_REPLACEMENT_CHAR));
+        return INVALID_KEY_CHAR_MATCHER.replaceFrom(key, KEY_REPLACEMENT_CHAR);
     }
 
     public void addFields(final Map<String, Object> fields) {
@@ -844,6 +856,7 @@ public class Message implements Messages, Indexable {
         return sequenceNr;
     }
 
+    @Override
     @Nullable
     public Object getMessageQueueId() {
         return messageQueueId;

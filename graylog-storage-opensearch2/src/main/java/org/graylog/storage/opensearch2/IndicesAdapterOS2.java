@@ -43,7 +43,6 @@ import org.graylog.shaded.opensearch2.org.opensearch.client.indices.CloseIndexRe
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.CreateIndexRequest;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.DeleteAliasRequest;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.GetMappingsRequest;
-import org.graylog.shaded.opensearch2.org.opensearch.client.indices.GetMappingsResponse;
 import org.graylog.shaded.opensearch2.org.opensearch.client.indices.PutMappingRequest;
 import org.graylog.shaded.opensearch2.org.opensearch.cluster.metadata.AliasMetadata;
 import org.graylog.shaded.opensearch2.org.opensearch.common.settings.Settings;
@@ -62,6 +61,7 @@ import org.graylog.shaded.opensearch2.org.opensearch.search.builder.SearchSource
 import org.graylog.storage.opensearch2.blocks.BlockSettingsParser;
 import org.graylog.storage.opensearch2.cat.CatApi;
 import org.graylog.storage.opensearch2.cluster.ClusterStateApi;
+import org.graylog.storage.opensearch2.stats.ClusterStatsApi;
 import org.graylog.storage.opensearch2.stats.StatsApi;
 import org.graylog2.datatiering.WarmIndexInfo;
 import org.graylog2.indexer.IndexNotFoundException;
@@ -76,12 +76,15 @@ import org.graylog2.indexer.indices.blocks.IndicesBlockStatus;
 import org.graylog2.indexer.indices.stats.IndexStatistics;
 import org.graylog2.indexer.searches.IndexRangeStats;
 import org.graylog2.plugin.Message;
+import org.graylog2.rest.resources.system.indexer.responses.IndexSetStats;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -95,6 +98,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static org.graylog.storage.opensearch2.OpenSearchClient.withTimeout;
 
@@ -102,18 +106,26 @@ public class IndicesAdapterOS2 implements IndicesAdapter {
     private static final Logger LOG = LoggerFactory.getLogger(IndicesAdapterOS2.class);
     private final OpenSearchClient client;
     private final StatsApi statsApi;
+    private final ClusterStatsApi clusterStatsApi;
     private final CatApi catApi;
     private final ClusterStateApi clusterStateApi;
     private final IndexTemplateAdapter indexTemplateAdapter;
 
+    // this is the maximum amount of bytes that the index list is supposed to fill in a request,
+    // it assumes that these don't need url encoding. If we exceed the maximum, we request settings for all indices
+    // and filter after wards
+    private final int MAX_INDICES_URL_LENGTH = 3000;
+
     @Inject
     public IndicesAdapterOS2(OpenSearchClient client,
                              StatsApi statsApi,
+                             ClusterStatsApi clusterStatsApi,
                              CatApi catApi,
                              ClusterStateApi clusterStateApi,
                              IndexTemplateAdapter indexTemplateAdapter) {
         this.client = client;
         this.statsApi = statsApi;
+        this.clusterStatsApi = clusterStatsApi;
         this.catApi = catApi;
         this.clusterStateApi = clusterStateApi;
         this.indexTemplateAdapter = indexTemplateAdapter;
@@ -153,13 +165,25 @@ public class IndicesAdapterOS2 implements IndicesAdapter {
 
     @Override
     public void create(String index, IndexSettings indexSettings) {
-        final Map<String, Object> settings = new HashMap<>();
-        settings.put("number_of_shards", indexSettings.shards());
-        settings.put("number_of_replicas", indexSettings.replicas());
+        executeCreateIndexRequest(index, createIndexRequest(index, indexSettings, null));
+    }
 
-        final CreateIndexRequest request = new CreateIndexRequest(index)
-                .settings(settings);
+    @Override
+    public void create(String index, IndexSettings indexSettings, @Nullable Map<String, Object> mapping) {
+        executeCreateIndexRequest(index, createIndexRequest(index, indexSettings, mapping));
+    }
 
+    private CreateIndexRequest createIndexRequest(String index,
+                                                  IndexSettings indexSettings,
+                                                  @Nullable Map<String, Object> mapping) {
+        CreateIndexRequest request = new CreateIndexRequest(index).settings(indexSettings.map());
+        if (mapping != null) {
+            request = request.mapping(mapping);
+        }
+        return request;
+    }
+
+    private void executeCreateIndexRequest(String index, CreateIndexRequest request) {
         client.execute((c, requestOptions) -> c.indices().create(request, requestOptions),
                 "Unable to create index " + index);
     }
@@ -177,6 +201,33 @@ public class IndicesAdapterOS2 implements IndicesAdapter {
     }
 
     @Override
+    public Map<String, Object> getIndexMapping(@Nonnull String index) {
+        final GetMappingsRequest request = new GetMappingsRequest()
+                .indices(index)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+
+        return client.execute((c, requestOptions) -> c.indices().getMapping(request, requestOptions).mappings().get(index).sourceAsMap(),
+                "Couldn't read mapping of index " + index);
+    }
+
+    @Override
+    public Map<String, Object> getFlattenIndexSettings(@Nonnull String index) {
+
+        final GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+                .indices(index)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+
+        return client.execute((c, requestOptions) -> {
+            final GetSettingsResponse settingsResponse = c.indices().getSettings(getSettingsRequest, requestOptions);
+            Settings settings = settingsResponse.getIndexToSettings().get(index);
+            ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+            settings.keySet().forEach(k -> Optional.ofNullable(settings.get(k)).ifPresent(v -> builder.put(k, v)));
+            return builder.build();
+        }, "Couldn't read settings of index " + index);
+    }
+
+
+    @Override
     public void updateIndexMetaData(@Nonnull String index, @Nonnull Map<String, Object> metadata, boolean mergeExisting) {
         Map<String, Object> metaUpdate = new HashMap<>();
         if (mergeExisting) {
@@ -189,14 +240,7 @@ public class IndicesAdapterOS2 implements IndicesAdapter {
 
     @Override
     public Map<String, Object> getIndexMetaData(@Nonnull String index) {
-        final GetMappingsRequest request = new GetMappingsRequest()
-                .indices(index)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-
-        final GetMappingsResponse result = client.execute((c, requestOptions) -> c.indices().getMapping(request, requestOptions),
-                "Couldn't read mapping of index " + index);
-
-        final Object metaData = result.mappings().get(index).sourceAsMap().get("_meta");
+        final Object metaData = getIndexMapping(index).get("_meta");
         //noinspection rawtypes
         if (metaData instanceof Map map) {
             //noinspection unchecked
@@ -385,23 +429,32 @@ public class IndicesAdapterOS2 implements IndicesAdapter {
     }
 
     @Override
+    public IndexSetStats getIndexSetStats() {
+        return clusterStatsApi.clusterStats();
+    }
+
+    @Override
     public List<ShardsInfo> getShardsInfo(String indexName) {
         return catApi.getShardsInfo(indexName);
     }
+
 
     @Override
     public IndicesBlockStatus getIndicesBlocksStatus(final List<String> indices) {
         if (indices == null || indices.isEmpty()) {
             throw new IllegalArgumentException("Expecting list of indices with at least one index present.");
         }
-        final GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
-                .indices(indices.toArray(new String[]{}))
+
+        final GetSettingsRequest request = new GetSettingsRequest()
                 .indicesOptions(IndicesOptions.fromOptions(false, true, true, true))
-                .names(new String[]{});
+                .names("index.blocks.read", "index.blocks.write", "index.blocks.metadata", "index.blocks.read_only", "index.blocks.read_only_allow_delete");
+
+        final var maxLengthExceeded = String.join(",", indices).length() > MAX_INDICES_URL_LENGTH;
+        final GetSettingsRequest getSettingsRequest = maxLengthExceeded ? request : request.indices(indices.toArray(new String[]{}));
 
         return client.execute((c, requestOptions) -> {
             final GetSettingsResponse settingsResponse = c.indices().getSettings(getSettingsRequest, requestOptions);
-            return BlockSettingsParser.parseBlockSettings(settingsResponse);
+            return BlockSettingsParser.parseBlockSettings(settingsResponse, maxLengthExceeded ? Optional.of(indices) : Optional.empty());
         });
     }
 

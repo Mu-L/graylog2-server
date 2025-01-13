@@ -15,10 +15,10 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import React from 'react';
-import PropTypes from 'prop-types';
 import styled from 'styled-components';
 
 import { NavItem } from 'components/bootstrap';
+import { itemStateIndicatorSelector } from 'components/common/NavItemStateIndicator';
 
 const StyledInactiveNav = styled(NavItem)`
   .navbar-default .navbar-nav > & > a {
@@ -26,6 +26,9 @@ const StyledInactiveNav = styled(NavItem)`
     &:focus {
       background: transparent;
     }
+  }
+  ${itemStateIndicatorSelector} {
+    display: none;
   }
 `;
 
@@ -38,16 +41,5 @@ type Props = {
 const InactiveNavItem = ({ active: _active, className, children, ...props }: React.PropsWithChildren<Props>) => (
   <StyledInactiveNav className={className} {...props}>{children}</StyledInactiveNav>
 );
-
-InactiveNavItem.propTypes = {
-  active: PropTypes.any,
-  children: PropTypes.oneOfType([PropTypes.array, PropTypes.element, PropTypes.string]).isRequired,
-  className: PropTypes.string,
-};
-
-InactiveNavItem.defaultProps = {
-  active: undefined,
-  className: undefined,
-};
 
 export default InactiveNavItem;

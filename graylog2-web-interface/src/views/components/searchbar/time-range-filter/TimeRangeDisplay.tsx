@@ -38,7 +38,7 @@ const TimeRangeWrapper = styled.div(({ theme }) => css`
   padding: 3px 13px;
   display: flex;
   justify-content: space-around;
-  background-color: ${theme.colors.table.backgroundAlt};
+  background-color: ${theme.colors.table.row.backgroundStriped};
   align-items: center;
 
   > span {
@@ -107,9 +107,5 @@ const TimeRangeDisplay = ({ timerange, toggleDropdownShow }: Props) => (
       : <TimeRange timerange={timerange} />}
   </TimeRangeWrapper>
 );
-
-TimeRangeDisplay.defaultProps = {
-  toggleDropdownShow: undefined,
-};
 
 export default TimeRangeDisplay;

@@ -23,10 +23,13 @@ import fetch from 'logic/rest/FetchProvider';
 import type { Attribute, SearchParams, PaginatedResponseType } from 'stores/PaginationTypes';
 import type FetchError from 'logic/errors/FetchError';
 import type { DataNodes } from 'components/datanode/Types';
+import { defaultOnError } from 'util/conditional/onError';
 
 export const bulkRemoveDataNode = async (entity_ids: string[], selectBackFailedEntities: (entity_ids: string[]) => void) => {
   try {
     const { failures, successfully_performed } = await fetch('POST', qualifyUrl('/datanode/bulk_remove'), { entity_ids });
+
+    selectBackFailedEntities([]);
 
     if (failures?.length) {
       selectBackFailedEntities(failures.map(({ entity_id }) => entity_id));
@@ -48,6 +51,8 @@ export const bulkStartDataNode = async (entity_ids: string[], selectBackFailedEn
   try {
     const { failures, successfully_performed } = await fetch('POST', qualifyUrl('/datanode/bulk_start'), { entity_ids });
 
+    selectBackFailedEntities([]);
+
     if (failures?.length) {
       selectBackFailedEntities(failures.map(({ entity_id }) => entity_id));
     }
@@ -67,6 +72,8 @@ export const bulkStartDataNode = async (entity_ids: string[], selectBackFailedEn
 export const bulkStopDataNode = async (entity_ids: string[], selectBackFailedEntities: (entity_ids: string[]) => void) => {
   try {
     const { failures, successfully_performed } = await fetch('POST', qualifyUrl('/datanode/bulk_stop'), { entity_ids });
+
+    selectBackFailedEntities([]);
 
     if (failures?.length) {
       selectBackFailedEntities(failures.map(({ entity_id }) => entity_id));
@@ -136,22 +143,29 @@ export const renewDatanodeCertificate = (nodeId: string) => fetch('POST', qualif
     UserNotification.error(`Certificate renewal failed with error: ${error}`);
   });
 
-const fetchDataNodes = async (params?: Partial<SearchParams>) => {
-  const url = PaginationURL('/system/cluster/datanodes', params?.page, params?.pageSize, params?.query, { sort: params?.sort?.attributeId, order: params?.sort?.direction });
+export const fetchDataNodes = async (params: SearchParams) => {
+  const url = PaginationURL('/system/cluster/datanodes', params.page, params.pageSize, params.query, { sort: params.sort?.attributeId, order: params.sort?.direction });
 
-  return fetch('GET', qualifyUrl(url));
+  return fetch('GET', qualifyUrl(url)).then(({ attributes, pagination, elements }) => ({
+    attributes,
+    list: elements,
+    pagination,
+  }));
 };
 
+export const keyFn = (searchParams: SearchParams) => ['datanodes', searchParams];
+
 export type DataNodeResponse = {
-  elements: DataNodes,
+  list: DataNodes,
   pagination: PaginatedResponseType,
   attributes: Array<Attribute>
 }
 
-const useDataNodes = (params: Partial<SearchParams> = {
-  query: '',
+const useDataNodes = (searchParams: SearchParams = {
+  query: '-datanode_status:UNAVAILABLE',
   page: 1,
   pageSize: 0,
+  sort: undefined,
 }, { enabled }: Options = { enabled: true }, refetchInterval : number | false = 5000) : {
   data: DataNodeResponse,
   refetch: () => void,
@@ -159,13 +173,9 @@ const useDataNodes = (params: Partial<SearchParams> = {
   error: FetchError,
 } => {
   const { data, refetch, isInitialLoading, error } = useQuery<DataNodeResponse, FetchError>(
-    ['datanodes'],
-    () => fetchDataNodes(params),
+    keyFn(searchParams),
+    () => defaultOnError(fetchDataNodes(searchParams), 'Loading Data Nodes failed with status', 'Could not load Data Nodes.'),
     {
-      onError: (errorThrown) => {
-        UserNotification.error(`Loading Data Nodes failed with status: ${errorThrown}`,
-          'Could not load Data Nodes.');
-      },
       notifyOnChangeProps: ['data', 'error'],
       refetchInterval,
       enabled,
@@ -175,7 +185,7 @@ const useDataNodes = (params: Partial<SearchParams> = {
   return ({
     data: data || {
       attributes: [],
-      elements: [],
+      list: [],
       pagination: {
         query: '',
         page: 1,

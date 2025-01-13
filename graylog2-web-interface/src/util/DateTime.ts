@@ -33,6 +33,7 @@ export const DATE_TIME_FORMATS = {
   internalIndexer: 'YYYY-MM-DDTHH:mm:ss.SSS[Z]', // ISO 8601, used for ES search queries, when a timestamp has to be reformatted
   date: 'YYYY-MM-DD',
   hourAndMinute: 'HH:mm',
+  dateHourAndMinute: 'YYYY-MM-DD HH:mm',
 };
 
 const DEFAULT_OUTPUT_TZ = 'UTC';
@@ -105,6 +106,26 @@ export const relativeDifference = (dateTime: DateTime) => {
 };
 
 /**
+ * Returns the time difference, relative to the provided date time, in days.
+ */
+export const relativeDifferenceDays = (dateTime: DateTime) => {
+  const eventDateObject = toDateObject(dateTime);
+  const todayDateObject = toDateObject(new Date());
+
+  return todayDateObject.diff(eventDateObject, 'days');
+};
+
+/**
+ * Returns the time difference, relative to the provided date time, in seconds.
+ */
+export const relativeDifferenceSeconds = (dateTime: DateTime) => {
+  const eventDateObject = toDateObject(dateTime);
+  const todayDateObject = toDateObject(new Date());
+
+  return todayDateObject.diff(eventDateObject, 'seconds');
+};
+
+/**
  * Validate if the provided time has a supported format.
  */
 export const isValidDate = (dateTime: DateTime) => moment(dateTime, Object.values(DATE_TIME_FORMATS), true).isValid();
@@ -131,3 +152,7 @@ export const durationInSeconds = (duration: string | number) => moment.duration(
  * Takes a duration (e.g. in milliseconds or seconds, or as a ISO8601 duration) and returns it in minutes.
  */
 export const durationInMinutes = (duration: string | number) => moment.duration(duration).asMinutes();
+/**
+ * Takes a duration (e.g. in minutes or seconds, or as a ISO8601 duration) and returns it in milliseconds.
+ */
+export const durationToMS = (duration: string) => moment.duration(duration).asMilliseconds();

@@ -15,7 +15,6 @@
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
 import Reflux from 'reflux';
-import PropTypes from 'prop-types';
 import isArray from 'lodash/isArray';
 
 import ApiRoutes from 'routing/ApiRoutes';
@@ -24,32 +23,9 @@ import { qualifyUrl } from 'util/URLUtils';
 import UserNotification from 'util/UserNotification';
 import { singletonStore, singletonActions } from 'logic/singleton';
 import type { RetentionStrategyConfig, RotationStrategyConfig } from 'components/indices/Types';
-import { RetentionStrategyConfigPropType, RotationStrategyConfigPropType } from 'components/indices/Types';
-import type { DataTieringConfig, DataTieringFormValues } from 'components/indices/data-tiering';
+import type { DataTieringConfig, DataTieringFormValues, DataTieringStatus } from 'components/indices/data-tiering';
 
-export const IndexSetPropType = PropTypes.shape({
-  can_be_default: PropTypes.bool,
-  id: PropTypes.string,
-  title: PropTypes.string,
-  description: PropTypes.string.isRequired,
-  index_prefix: PropTypes.string.isRequired,
-  shards: PropTypes.number.isRequired,
-  replicas: PropTypes.number.isRequired,
-  rotation_strategy_class: PropTypes.string.isRequired,
-  rotation_strategy: RotationStrategyConfigPropType.isRequired,
-  retention_strategy_class: PropTypes.string.isRequired,
-  retention_strategy: RetentionStrategyConfigPropType.isRequired,
-  creation_date: PropTypes.string,
-  index_analyzer: PropTypes.string.isRequired,
-  index_optimization_max_num_segments: PropTypes.number.isRequired,
-  index_optimization_disabled: PropTypes.bool.isRequired,
-  field_type_refresh_interval: PropTypes.number.isRequired,
-  index_template_type: PropTypes.string,
-  writable: PropTypes.bool.isRequired,
-  default: PropTypes.bool.isRequired,
-});
-
-type IndexSetConfig = {
+export type IndexSetConfig = {
   can_be_default?: boolean,
   id?: string,
   title: string,
@@ -73,24 +49,10 @@ type IndexSetConfig = {
   use_legacy_rotation?: boolean
 }
 
-export type IndexSetsDefaultConfiguration = Pick<IndexSetConfig,
-  'index_prefix' |
-  'index_analyzer' |
-  'shards' |
-  'replicas' |
-  'index_optimization_max_num_segments' |
-  'index_optimization_disabled' |
-  'field_type_refresh_interval' |
-  'rotation_strategy_class' |
-  'retention_strategy_class'
-> & {
-  rotation_strategy_config: RotationStrategyConfig,
-  retention_strategy_config: RetentionStrategyConfig,
-  field_type_refresh_interval_unit: 'seconds' | 'minutes',
-  data_tiering: DataTieringConfig
-}
-
-export type IndexSet = IndexSetConfig & { data_tiering?: DataTieringConfig };
+export type IndexSet = IndexSetConfig & {
+  data_tiering?: DataTieringConfig,
+  data_tiering_status?: DataTieringStatus
+};
 
 export type IndexSetFormValues = IndexSetConfig & { data_tiering?: DataTieringFormValues };
 
@@ -100,11 +62,11 @@ export type IndexSetStats = {
   size: number,
 }
 
-type IndexSetsStats = {
+export type IndexSetsStats = {
   [key: string]: IndexSetStats
 }
 
-type IndexSetsResponseType = {
+export type IndexSetsResponseType = {
   total: number,
   index_sets: Array<IndexSet>,
   stats: IndexSetsStats,

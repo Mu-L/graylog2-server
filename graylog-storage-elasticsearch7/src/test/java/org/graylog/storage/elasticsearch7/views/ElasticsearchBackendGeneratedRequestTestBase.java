@@ -19,11 +19,9 @@ package org.graylog.storage.elasticsearch7.views;
 import com.google.common.collect.ImmutableSet;
 import jakarta.inject.Provider;
 import org.graylog.plugins.views.search.Query;
-import org.graylog.plugins.views.search.QueryResult;
 import org.graylog.plugins.views.search.Search;
 import org.graylog.plugins.views.search.SearchJob;
 import org.graylog.plugins.views.search.SearchType;
-import org.graylog.plugins.views.search.elasticsearch.FieldTypesLookup;
 import org.graylog.plugins.views.search.elasticsearch.IndexLookup;
 import org.graylog.plugins.views.search.engine.monitoring.collection.NoOpStatsCollector;
 import org.graylog.plugins.views.search.searchfilters.model.InlineQueryStringSearchFilter;
@@ -34,7 +32,6 @@ import org.graylog.plugins.views.search.searchtypes.pivot.series.Average;
 import org.graylog.plugins.views.search.searchtypes.pivot.series.Max;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.action.search.SearchRequest;
 import org.graylog.shaded.elasticsearch7.org.elasticsearch.search.aggregations.Aggregation;
-import org.graylog.storage.elasticsearch7.ElasticsearchClient;
 import org.graylog.storage.elasticsearch7.views.searchtypes.ESSearchTypeHandler;
 import org.graylog.storage.elasticsearch7.views.searchtypes.pivot.ESPivot;
 import org.graylog.storage.elasticsearch7.views.searchtypes.pivot.ESPivotBucketSpecHandler;
@@ -45,6 +42,7 @@ import org.graylog.storage.elasticsearch7.views.searchtypes.pivot.series.ESMaxHa
 import org.graylog2.plugin.indexer.searches.timeranges.AbsoluteRange;
 import org.graylog2.plugin.indexer.searches.timeranges.InvalidRangeParametersException;
 import org.graylog2.plugin.indexer.searches.timeranges.TimeRange;
+import org.graylog2.streams.StreamService;
 import org.junit.Before;
 import org.junit.Rule;
 import org.mockito.ArgumentCaptor;
@@ -57,27 +55,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class ElasticsearchBackendGeneratedRequestTestBase {
+public class ElasticsearchBackendGeneratedRequestTestBase extends ElasticsearchMockedClientTestBase {
     @Rule
     public MockitoRule rule = MockitoJUnit.rule();
 
     ElasticsearchBackend elasticsearchBackend;
 
     @Mock
-    protected ElasticsearchClient client;
-
-    @Mock
     protected IndexLookup indexLookup;
-
-    @Mock
-    protected FieldTypesLookup fieldTypesLookup;
 
     protected Map<String, Provider<ESSearchTypeHandler<? extends SearchType>>> elasticSearchTypeHandlers;
 
@@ -96,12 +86,13 @@ public class ElasticsearchBackendGeneratedRequestTestBase {
         this.elasticsearchBackend = new ElasticsearchBackend(elasticSearchTypeHandlers,
                 client,
                 indexLookup,
-                (elasticsearchBackend, ssb, errors) -> new ESGeneratedQueryContext(elasticsearchBackend, ssb, errors, fieldTypesLookup),
+                ViewsUtils.createTestContextFactory(),
                 usedSearchFilters -> usedSearchFilters.stream()
                         .filter(sf -> sf instanceof InlineQueryStringSearchFilter)
                         .map(inlineSf -> ((InlineQueryStringSearchFilter) inlineSf).queryString())
                         .collect(Collectors.toSet()),
                 new NoOpStatsCollector<>(),
+                mock(StreamService.class),
                 false);
     }
 
@@ -121,10 +112,10 @@ public class ElasticsearchBackendGeneratedRequestTestBase {
         return null;
     }
 
-    List<SearchRequest> run(SearchJob searchJob, Query query, ESGeneratedQueryContext queryContext, Set<QueryResult> predecessorResults) {
+    List<SearchRequest> run(SearchJob searchJob, Query query, ESGeneratedQueryContext queryContext) {
         this.elasticsearchBackend.doRun(searchJob, query, queryContext);
 
-        verify(client, times(1)).msearch(clientRequestCaptor.capture(), any());
+        verify(client).cancellableMsearch(clientRequestCaptor.capture());
 
         return clientRequestCaptor.getValue();
     }

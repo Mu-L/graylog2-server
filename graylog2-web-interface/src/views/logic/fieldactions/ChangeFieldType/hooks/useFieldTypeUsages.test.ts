@@ -17,11 +17,12 @@
 
 import { renderHook } from 'wrappedTestingLibrary/hooks';
 
+import { SystemIndexSetsTypes } from '@graylog/server-api';
+
 import asMock from 'helpers/mocking/AsMock';
 import UserNotification from 'util/UserNotification';
 import suppressConsole from 'helpers/suppressConsole';
 import useFieldTypeUsages from 'views/logic/fieldactions/ChangeFieldType/hooks/useFieldTypeUsages';
-import { SystemIndexSetsTypes } from '@graylog/server-api';
 
 const mockFieldTypeUsages = {
   attributes: [],
@@ -40,7 +41,7 @@ const mockFieldTypeUsages = {
   },
   total: 1,
   sort: 'index_set_title',
-  order: 'desc',
+  order: 'desc' as 'asc' | 'desc',
   elements: [
     {
       index_set_id: '0001',

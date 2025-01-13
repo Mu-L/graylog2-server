@@ -94,9 +94,12 @@ const SetProfileModal = ({ show, onClose, currentProfile }: Props) => {
   }, [onClose, sendTelemetry, telemetryPathName]);
 
   useEffect(() => {
-    setProfile(currentProfile);
     sendTelemetry(TELEMETRY_EVENT_TYPE.INDEX_SET_FIELD_TYPE_PROFILE.CHANGE_FOR_INDEX_OPENED, { app_pathname: telemetryPathName, app_action_value: 'removed-custom-field-type-opened' });
   }, [sendTelemetry, telemetryPathName, currentProfile]);
+
+  useEffect(() => {
+    setProfile(currentProfile);
+  }, [currentProfile]);
 
   const onChangeProfile = (newProfile: string) => setProfile(newProfile);
 
@@ -115,7 +118,6 @@ const SetProfileModal = ({ show, onClose, currentProfile }: Props) => {
                             options={options}
                             value={profile}
                             onChange={onChangeProfile}
-                            inputProps={{ 'aria-label': 'Select index set profile' }}
                             placeholder="Select index set profile"
                             disabled={profileOptionsIsLoading}
                             required />

@@ -21,8 +21,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 import com.google.inject.assistedinject.Assisted;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 import io.netty.buffer.Unpooled;
+import jakarta.inject.Inject;
 import org.graylog.integrations.ipfix.Flow;
 import org.graylog.integrations.ipfix.InformationElementDefinitions;
 import org.graylog.integrations.ipfix.IpfixException;
@@ -30,6 +30,7 @@ import org.graylog.integrations.ipfix.IpfixJournal;
 import org.graylog.integrations.ipfix.IpfixParser;
 import org.graylog.integrations.ipfix.TemplateRecord;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.MessageFactory;
 import org.graylog2.plugin.ResolvableInetSocketAddress;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.configuration.ConfigurationRequest;
@@ -41,6 +42,7 @@ import org.graylog2.plugin.inputs.annotations.FactoryClass;
 import org.graylog2.plugin.inputs.codecs.AbstractCodec;
 import org.graylog2.plugin.inputs.codecs.CodecAggregator;
 import org.graylog2.plugin.inputs.codecs.MultiMessageCodec;
+import org.graylog2.plugin.inputs.failure.InputProcessingException;
 import org.graylog2.plugin.inputs.transports.NettyTransport;
 import org.graylog2.plugin.journal.RawMessage;
 import org.joda.time.DateTime;
@@ -51,9 +53,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -70,6 +69,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -83,13 +83,15 @@ public class IpfixCodec extends AbstractCodec implements MultiMessageCodec {
     @VisibleForTesting
     static final String IPFIX_STANDARD_DEFINITION = "/ipfix-iana-elements.json";
     private final IpfixAggregator ipfixAggregator;
+    private final MessageFactory messageFactory;
     private final IpfixParser parser;
     private InformationElementDefinitions infoElementDefs;
 
     @Inject
-    protected IpfixCodec(@Assisted Configuration configuration, IpfixAggregator ipfixAggregator) throws IOException {
+    protected IpfixCodec(@Assisted Configuration configuration, IpfixAggregator ipfixAggregator, MessageFactory messageFactory) throws IOException {
         super(configuration);
         this.ipfixAggregator = ipfixAggregator;
+        this.messageFactory = messageFactory;
         final URL standardIPFixDefTemplate = Resources.getResource(IpfixCodec.class, IPFIX_STANDARD_DEFINITION);
         final List<String> customDefFilePathList = configuration.getList(CK_IPFIX_DEFINITION_PATH);
         final List<URL> filePaths = new ArrayList<>();
@@ -197,7 +199,7 @@ public class IpfixCodec extends AbstractCodec implements MultiMessageCodec {
                     .toMap(Tuple2::v1, Tuple2::v2);
 
             return rawIpfix.getDataSetsList().stream()
-                    .map(dataSet -> {
+                    .flatMap(dataSet -> {
                         final int templateId = dataSet.getTemplateId();
                         final ZonedDateTime flowExportTimestamp = ZonedDateTime.ofInstant(Instant.ofEpochSecond(dataSet.getTimestampEpochSeconds()), ZoneOffset.UTC);
                         final TemplateRecord templateRecord = templateRecordMap.get(templateId);
@@ -209,11 +211,9 @@ public class IpfixCodec extends AbstractCodec implements MultiMessageCodec {
                         return flows.stream()
                                 .map(flow -> formatFlow(flowExportTimestamp, sender, flow));
                     })
-                    .flatMap(messageStream -> messageStream)
                     .collect(Collectors.toList());
-        } catch (InvalidProtocolBufferException e) {
-            LOG.error("Unable to parse ipfix journal message", e);
-            return Collections.emptyList();
+        } catch (Exception e) {
+            throw InputProcessingException.create("Unable to parse ipfix journal message", rawMessage);
         }
     }
 
@@ -221,14 +221,13 @@ public class IpfixCodec extends AbstractCodec implements MultiMessageCodec {
         final ImmutableMap<String, Object> fields = flow.fields();
         final DateTime timestamp = new DateTime(Date.from(flowExportTimestamp.toInstant()));
         final String source = sender == null ? null : sender.getAddress().getHostAddress();
-        final Message message = new Message(toMessageString(flow), source, timestamp);
+        final Message message = messageFactory.createMessage(toMessageString(flow), source, timestamp);
         message.addFields(fields);
         return message;
     }
 
-    @Nullable
     @Override
-    public Message decode(@Nonnull RawMessage rawMessage) {
+    public Optional<Message> decodeSafe(@Nonnull RawMessage rawMessage) {
         throw new UnsupportedOperationException("MultiMessageCodec " + getClass() + " does not support decode()");
     }
 

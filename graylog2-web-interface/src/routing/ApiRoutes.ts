@@ -29,18 +29,6 @@ type SearchQueryString = {
 } & Partial<TimeRange>;
 
 const ApiRoutes = {
-  AlarmCallbacksApiController: {
-    available: () => ({ url: '/alerts/callbacks/types' }),
-    create: (streamId: string) => ({ url: `/streams/${streamId}/alarmcallbacks` }),
-    delete: (streamId: string, alarmCallbackId: string) => ({ url: `/streams/${streamId}/alarmcallbacks/${alarmCallbackId}` }),
-    listAll: () => ({ url: '/alerts/callbacks' }),
-    list: (streamId: string) => ({ url: `/streams/${streamId}/alarmcallbacks` }),
-    testAlert: (alarmCallbackId: string) => ({ url: `/alerts/callbacks/${alarmCallbackId}/test` }),
-    update: (streamId: string, alarmCallbackId: string) => ({ url: `/streams/${streamId}/alarmcallbacks/${alarmCallbackId}` }),
-  },
-  AlarmCallbackHistoryApiController: {
-    list: (streamId: string, alertId: string) => ({ url: `/streams/${streamId}/alerts/${alertId}/history` }),
-  },
   AuthenticationController: {
     create: () => ({ url: '/system/authentication/services/backends' }),
     delete: (backendId: string) => ({ url: `/system/authentication/services/backends/${backendId}` }),
@@ -84,10 +72,6 @@ const ApiRoutes = {
     installList: (contentPackId: string) => ({ url: `/system/content_packs/${contentPackId}/installations` }),
     uninstall: (contentPackId: string, installId: string) => ({ url: `/system/content_packs/${contentPackId}/installations/${installId}` }),
     uninstallDetails: (contentPackId: string, installId: string) => ({ url: `/system/content_packs/${contentPackId}/installations/${installId}/uninstall_details` }),
-  },
-  CountsApiController: {
-    total: () => ({ url: '/count/total' }),
-    indexSetTotal: (indexSetId: string) => ({ url: `/count/${indexSetId}/total` }),
   },
   ClusterApiResource: {
     list: () => ({ url: '/system/cluster/nodes' }),
@@ -163,6 +147,7 @@ const ApiRoutes = {
   IndexerClusterApiController: {
     health: () => ({ url: '/system/indexer/cluster/health' }),
     name: () => ({ url: '/system/indexer/cluster/name' }),
+    info: () => ({ url: '/system/indexer/cluster/info' }),
   },
   IndexerFailuresApiController: {
     count: (since: number) => ({ url: `/system/indexer/failures/count?since=${since}` }),
@@ -180,6 +165,7 @@ const ApiRoutes = {
     list: (stats) => ({ url: `/system/indices/index_sets?stats=${stats}` }),
     listPaginated: (skip, limit, stats) => ({ url: `/system/indices/index_sets?skip=${skip}&limit=${limit}&stats=${stats}` }),
     get: (indexSetId: string) => ({ url: `/system/indices/index_sets/${indexSetId}` }),
+    getIndexSetStats: (indexSetId: string) => ({ url: `/system/indices/index_sets/${indexSetId}/stats` }),
     create: () => ({ url: '/system/indices/index_sets' }),
     delete: (indexSetId: string, deleteIndices) => ({ url: `/system/indices/index_sets/${indexSetId}?delete_indices=${deleteIndices}` }),
     searchPaginated: (searchTerm, skip, limit, stats) => ({ url: `/system/indices/index_sets/search?searchTitle=${searchTerm}&skip=${skip}&limit=${limit}&stats=${stats}` }),
@@ -208,6 +194,7 @@ const ApiRoutes = {
     list: () => ({ url: '/cluster/inputstates' }),
     start: (inputId: string) => ({ url: `/cluster/inputstates/${inputId}` }),
     stop: (inputId: string) => ({ url: `/cluster/inputstates/${inputId}` }),
+    setup: (inputId: string) => ({ url: `/cluster/inputstates/setup/${inputId}` }),
   },
   ClusterLoggersResource: {
     loggers: () => ({ url: '/cluster/system/loggers' }),
@@ -248,13 +235,6 @@ const ApiRoutes = {
     availableType: (type: string) => ({ url: `/system/outputs/available/${type}` }),
     availableTypes: () => ({ url: '/system/outputs/available' }),
   },
-  RolesApiController: {
-    listRoles: () => ({ url: '/roles' }),
-    createRole: () => ({ url: '/roles' }),
-    updateRole: (rolename: string) => ({ url: `/roles/${rolename}` }),
-    deleteRole: (rolename: string) => ({ url: `/roles/${rolename}` }),
-    loadMembers: (rolename: string) => ({ url: `/roles/${rolename}/members` }),
-  },
   SavedSearchesApiController: {
     create: () => ({ url: '/search/saved' }),
     delete: (savedSearchId: string) => ({ url: `/search/saved/${savedSearchId}` }),
@@ -287,6 +267,12 @@ const ApiRoutes = {
     delete: (streamId: string, streamRuleId: string) => ({ url: `/streams/${streamId}/rules/${streamRuleId}` }),
     update: (streamId: string, streamRuleId: string) => ({ url: `/streams/${streamId}/rules/${streamRuleId}` }),
     create: (streamId: string) => ({ url: `/streams/${streamId}/rules` }),
+  },
+  StreamOutputFilterRuleApiController: {
+    get: (streamId: string) => ({ url: `/streams/${streamId}/destinations/filters` }),
+    delete: (streamId: string, filterId: string) => ({ url: `/streams/${streamId}/destinations/filters/${filterId}` }),
+    update: (streamId: string, filterId: string) => ({ url: `/streams/${streamId}/destinations/filters/${filterId}` }),
+    create: (streamId: string) => ({ url: `/streams/${streamId}/destinations/filters` }),
   },
   SystemApiController: {
     info: () => ({ url: '/system' }),
@@ -435,6 +421,7 @@ const ApiRoutes = {
     update: (pipelineId: string) => ({ url: `/system/pipelines/pipeline/${pipelineId}` }),
     delete: (pipelineId: string) => ({ url: `/system/pipelines/pipeline/${pipelineId}` }),
     parse: () => ({ url: '/system/pipelines/pipeline/parse' }),
+    updateRouting: () => ({ url: '/system/pipelines/pipeline/routing' }),
   },
   RulesController: {
     list: () => ({ url: '/system/pipelines/rule' }),

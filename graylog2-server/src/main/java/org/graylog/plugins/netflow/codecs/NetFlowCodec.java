@@ -23,6 +23,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import jakarta.inject.Inject;
 import org.graylog.plugins.netflow.flows.FlowException;
 import org.graylog.plugins.netflow.flows.NetFlowFormatter;
 import org.graylog.plugins.netflow.v5.NetFlowV5Packet;
@@ -46,6 +47,7 @@ import org.graylog2.plugin.inputs.annotations.FactoryClass;
 import org.graylog2.plugin.inputs.codecs.AbstractCodec;
 import org.graylog2.plugin.inputs.codecs.CodecAggregator;
 import org.graylog2.plugin.inputs.codecs.MultiMessageCodec;
+import org.graylog2.plugin.inputs.failure.InputProcessingException;
 import org.graylog2.plugin.inputs.transports.NettyTransport;
 import org.graylog2.plugin.journal.RawMessage;
 import org.graylog2.shared.utilities.ExceptionUtils;
@@ -54,9 +56,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,6 +63,7 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Codec(name = "netflow", displayName = "NetFlow")
@@ -82,11 +82,14 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
     private static final Logger LOG = LoggerFactory.getLogger(NetFlowCodec.class);
     private final NetFlowV9FieldTypeRegistry typeRegistry;
     private final NetflowV9CodecAggregator netflowV9CodecAggregator;
+    private final NetFlowFormatter netFlowFormatter;
 
     @Inject
-    protected NetFlowCodec(@Assisted Configuration configuration, NetflowV9CodecAggregator netflowV9CodecAggregator) throws IOException {
+    protected NetFlowCodec(@Assisted Configuration configuration, NetflowV9CodecAggregator netflowV9CodecAggregator,
+                           NetFlowFormatter netFlowFormatter) throws IOException {
         super(configuration);
         this.netflowV9CodecAggregator = netflowV9CodecAggregator;
+        this.netFlowFormatter = netFlowFormatter;
 
         final String netFlow9DefinitionsPath = configuration.getString(CK_NETFLOW9_DEFINITION_PATH);
         if (netFlow9DefinitionsPath == null || netFlow9DefinitionsPath.trim().isEmpty()) {
@@ -104,9 +107,8 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
         return netflowV9CodecAggregator;
     }
 
-    @Nullable
     @Override
-    public Message decode(@Nonnull RawMessage rawMessage) {
+    public Optional<Message> decodeSafe(@Nonnull RawMessage rawMessage) {
         throw new UnsupportedOperationException("MultiMessageCodec " + getClass() + " does not support decode()");
     }
 
@@ -119,9 +121,8 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
 
             final byte[] payload = rawMessage.getPayload();
             if (payload.length < 3) {
-                LOG.debug("NetFlow message (source: {}) doesn't even fit the NetFlow version (size: {} bytes)",
-                        sender, payload.length);
-                return null;
+                throw InputProcessingException.create("NetFlow message (source: %s) doesn't even fit the NetFlow version (size: %s bytes)"
+                        .formatted(sender, payload.length), rawMessage);
             }
 
             final ByteBuf buffer = Unpooled.wrappedBuffer(payload);
@@ -130,7 +131,7 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
                     final NetFlowV5Packet netFlowV5Packet = NetFlowV5Parser.parsePacket(buffer);
 
                     return netFlowV5Packet.records().stream()
-                            .map(record -> NetFlowFormatter.toMessage(netFlowV5Packet.header(), record, sender))
+                            .map(record -> netFlowFormatter.toMessage(netFlowV5Packet.header(), record, sender))
                             .collect(Collectors.toList());
                 case ORDERED_V9_MARKER:
                     // our "custom" netflow v9 that has all the templates in the same packet
@@ -139,18 +140,25 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
                     final List<RawMessage.SourceNode> sourceNodes = rawMessage.getSourceNodes();
                     final RawMessage.SourceNode sourceNode = sourceNodes.isEmpty() ? null : sourceNodes.get(sourceNodes.size() - 1);
                     final String inputId = sourceNode == null ? "<unknown>" : sourceNode.inputId;
-                    LOG.warn("Unsupported NetFlow packet on input {} (source: {})", inputId, sender);
-                    return null;
+                    throw InputProcessingException.create("Unsupported NetFlow packet on input %s (source: %s)"
+                            .formatted(inputId, sender), rawMessage);
+
             }
         } catch (FlowException e) {
-            LOG.error("Error parsing NetFlow packet <{}> received from <{}>", rawMessage.getId(), rawMessage.getRemoteAddress(), e);
             if (LOG.isDebugEnabled()) {
                 LOG.debug("NetFlow packet hexdump:\n{}", ByteBufUtil.prettyHexDump(Unpooled.wrappedBuffer(rawMessage.getPayload())));
             }
-            return null;
+            throw InputProcessingException.create(
+                    "Error parsing NetFlow packet <%s> received from <%s>".formatted(rawMessage.getId(), rawMessage.getRemoteAddress()),
+                    e,
+                    rawMessage,
+                    ByteBufUtil.prettyHexDump(Unpooled.wrappedBuffer(rawMessage.getPayload())));
         } catch (InvalidProtocolBufferException e) {
-            LOG.error("Invalid NetFlowV9 entry found, cannot parse the messages", ExceptionUtils.getRootCause(e));
-            return null;
+            throw InputProcessingException.create(
+                    "Invalid NetFlowV9 entry found, cannot parse the messages",
+                    ExceptionUtils.getRootCause(e),
+                    rawMessage,
+                    ByteBufUtil.prettyHexDump(Unpooled.wrappedBuffer(rawMessage.getPayload())));
         }
     }
 
@@ -160,7 +168,7 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
 
         return netFlowV9Packets.stream().map(netFlowV9Packet -> netFlowV9Packet.records().stream()
                         .filter(record -> record instanceof NetFlowV9Record)
-                        .map(record -> NetFlowFormatter.toMessage(netFlowV9Packet.header(), record, sender))
+                        .map(record -> netFlowFormatter.toMessage(netFlowV9Packet.header(), record, sender))
                         .collect(Collectors.toList())
                 ).flatMap(Collection::stream)
                 .collect(Collectors.toList());
@@ -180,9 +188,8 @@ public class NetFlowCodec extends AbstractCodec implements MultiMessageCodec {
             templateMap.put(templateId, netFlowV9Template);
         });
         final NetFlowV9OptionTemplate[] optionTemplate = {null};
-        rawNetflowV9.getOptionTemplateMap().forEach((templateId, byteString) -> {
-            optionTemplate[0] = NetFlowV9Parser.parseOptionTemplate(Unpooled.wrappedBuffer(byteString.toByteArray()), typeRegistry);
-        });
+        rawNetflowV9.getOptionTemplateMap().forEach((templateId, byteString) ->
+                optionTemplate[0] = NetFlowV9Parser.parseOptionTemplate(Unpooled.wrappedBuffer(byteString.toByteArray()), typeRegistry));
 
         return rawNetflowV9.getPacketsList().stream()
                 .map(bytes -> Unpooled.wrappedBuffer(bytes.toByteArray()))

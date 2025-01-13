@@ -21,10 +21,12 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.assistedinject.Assisted;
+import jakarta.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
 import org.graylog2.inputs.codecs.gelf.GELFMessage;
 import org.graylog2.inputs.transports.TcpTransport;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.MessageFactory;
 import org.graylog2.plugin.ResolvableInetSocketAddress;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.configuration.Configuration;
@@ -36,6 +38,7 @@ import org.graylog2.plugin.inputs.annotations.ConfigClass;
 import org.graylog2.plugin.inputs.annotations.FactoryClass;
 import org.graylog2.plugin.inputs.codecs.AbstractCodec;
 import org.graylog2.plugin.inputs.codecs.CodecAggregator;
+import org.graylog2.plugin.inputs.failure.InputProcessingException;
 import org.graylog2.plugin.inputs.transports.NettyTransport;
 import org.graylog2.plugin.journal.RawMessage;
 import org.joda.time.DateTime;
@@ -44,12 +47,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import jakarta.inject.Inject;
-
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 
 @Codec(name = "gelf", displayName = "GELF")
 public class GelfCodec extends AbstractCodec {
@@ -58,13 +59,15 @@ public class GelfCodec extends AbstractCodec {
     private static final int DEFAULT_DECOMPRESS_SIZE_LIMIT = 8388608;
 
     private final GelfChunkAggregator aggregator;
+    private final MessageFactory messageFactory;
     private final ObjectMapper objectMapper;
     private final long decompressSizeLimit;
 
     @Inject
-    public GelfCodec(@Assisted Configuration configuration, GelfChunkAggregator aggregator) {
+    public GelfCodec(@Assisted Configuration configuration, GelfChunkAggregator aggregator, MessageFactory messageFactory) {
         super(configuration);
         this.aggregator = aggregator;
+        this.messageFactory = messageFactory;
         this.objectMapper = new ObjectMapper().enable(
                 JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS,
                 JsonParser.Feature.ALLOW_TRAILING_COMMA);
@@ -120,9 +123,8 @@ public class GelfCodec extends AbstractCodec {
         }
     }
 
-    @Nullable
     @Override
-    public Message decode(@Nonnull final RawMessage rawMessage) {
+    public Optional<Message> decodeSafe(@Nonnull final RawMessage rawMessage) {
         final GELFMessage gelfMessage = new GELFMessage(rawMessage.getPayload(), rawMessage.getRemoteAddress());
         final String json = gelfMessage.getJSON(decompressSizeLimit, charset);
 
@@ -134,16 +136,14 @@ public class GelfCodec extends AbstractCodec {
                 throw new IOException("null result");
             }
         } catch (final Exception e) {
-            log.error("Could not parse JSON, first 400 characters: " +
-                    StringUtils.abbreviate(json, 403), e);
-            throw new IllegalStateException("JSON is null/could not be parsed (invalid JSON)", e);
+            throw InputProcessingException.create("JSON is null/could not be parsed (invalid JSON)",
+                    e, rawMessage, json);
         }
 
         try {
             validateGELFMessage(node, rawMessage.getId(), rawMessage.getRemoteAddress());
         } catch (IllegalArgumentException e) {
-            log.trace("Invalid GELF message <{}>", node);
-            throw e;
+            throw InputProcessingException.create(e.getMessage(), e, rawMessage, json);
         }
 
         // Timestamp.
@@ -156,7 +156,7 @@ public class GelfCodec extends AbstractCodec {
             timestamp = Tools.dateTimeFromDouble(messageTimestamp);
         }
 
-        final Message message = new Message(
+        final Message message = messageFactory.createMessage(
                 stringValue(node, "short_message"),
                 stringValue(node, "host"),
                 timestamp
@@ -237,7 +237,7 @@ public class GelfCodec extends AbstractCodec {
             message.addField(key, fieldValue);
         }
 
-        return message;
+        return Optional.of(message);
     }
 
     private void validateGELFMessage(JsonNode jsonNode, UUID id, ResolvableInetSocketAddress remoteAddress) {

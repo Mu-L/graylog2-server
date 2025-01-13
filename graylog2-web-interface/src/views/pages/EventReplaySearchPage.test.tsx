@@ -24,18 +24,19 @@ import StreamsContext from 'contexts/StreamsContext';
 import UseCreateViewForEvent from 'views/logic/views/UseCreateViewForEvent';
 import useProcessHooksForView from 'views/logic/views/UseProcessHooksForView';
 import { createSearch } from 'fixtures/searches';
-import { loadViewsPlugin, unloadViewsPlugin } from 'views/test/testViewsPlugin';
+import useViewsPlugin from 'views/test/testViewsPlugin';
 import SearchExecutionState from 'views/logic/search/SearchExecutionState';
 import EventReplaySearchPage, { onErrorHandler } from 'views/pages/EventReplaySearchPage';
 import useEventById from 'hooks/useEventById';
 import useEventDefinition from 'hooks/useEventDefinition';
-import useAlertAndEventDefinitionData from 'hooks/useAlertAndEventDefinitionData';
+import useAlertAndEventDefinitionData from 'components/event-definitions/replay-search/hooks/useAlertAndEventDefinitionData';
 import {
   mockedMappedAggregation,
   mockEventData,
   mockEventDefinitionTwoAggregations,
 } from 'helpers/mocking/EventAndEventDefinitions_mock';
 import useParams from 'routing/useParams';
+import type { Stream } from 'logic/streams/types';
 
 const mockView = createSearch();
 
@@ -48,7 +49,7 @@ jest.mock('views/logic/views/UseProcessHooksForView');
 jest.mock('views/hooks/useCreateSearch');
 jest.mock('hooks/useEventById');
 jest.mock('hooks/useEventDefinition');
-jest.mock('hooks/useAlertAndEventDefinitionData');
+jest.mock('components/event-definitions/replay-search/hooks/useAlertAndEventDefinitionData');
 
 jest.mock('stores/event-notifications/EventNotificationsStore', () => ({
   EventNotificationsActions: {
@@ -69,14 +70,12 @@ jest.mock('views/logic/Widgets', () => ({
 
 describe('EventReplaySearchPage', () => {
   const SimpleReplaySearchPage = () => (
-    <StreamsContext.Provider value={[{ id: 'deadbeef', title: 'Teststream' }]}>
+    <StreamsContext.Provider value={[{ id: 'deadbeef', title: 'Teststream' } as Stream]}>
       <EventReplaySearchPage />
     </StreamsContext.Provider>
   );
 
-  beforeAll(loadViewsPlugin);
-
-  afterAll(unloadViewsPlugin);
+  useViewsPlugin();
 
   beforeEach(() => {
     asMock(useParams).mockReturnValue({ alertId: mockEventData.event.id });
@@ -104,12 +103,10 @@ describe('EventReplaySearchPage', () => {
       eventData: mockEventData.event,
       eventDefinition: mockEventDefinitionTwoAggregations,
       aggregations: mockedMappedAggregation,
-      isEvent: true,
-      isEventDefinition: false,
-      isAlert: false,
       alertId: mockEventData.event.id,
       definitionId: mockEventDefinitionTwoAggregations.id,
       definitionTitle: mockEventDefinitionTwoAggregations.title,
+      isLoading: false,
     }));
 
     render(<SimpleReplaySearchPage />);

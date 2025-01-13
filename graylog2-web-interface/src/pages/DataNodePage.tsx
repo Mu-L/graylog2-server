@@ -24,7 +24,6 @@ import DocsHelper from 'util/DocsHelper';
 import { Row, Col, Label } from 'components/bootstrap';
 import { DocumentTitle, NoSearchResult, PageHeader, RelativeTime, Spinner } from 'components/common';
 import { CertRenewalButton } from 'components/datanode/DataNodeConfiguration/CertificateRenewal';
-import Icon from 'components/common/Icon';
 import useDataNode from 'components/datanode/hooks/useDataNode';
 import DataNodeActions from 'components/datanode/DataNodeList/DataNodeActions';
 
@@ -51,12 +50,6 @@ const StatusLabel = styled(Label)`
   justify-content: center;
   gap: 4px;
 `;
-const BooleanIcon = styled(Icon)<{ value: boolean }>(({ theme, value }) => css`
-  color: ${value ? theme.colors.variant.success : theme.colors.variant.danger};
-`);
-const BooleanValue = ({ value }: { value: boolean }) => (
-  <><BooleanIcon name={value ? 'check_circle' : 'cancel'} value={value} /> {value ? 'yes' : 'no'}</>
-);
 
 const ActionsCol = styled(Col)`
   text-align: right;
@@ -64,7 +57,7 @@ const ActionsCol = styled(Col)`
 
 const DataNodePage = () => {
   const { dataNodeId } = useParams();
-  const { data, isInitialLoading, error } = useDataNode(dataNodeId);
+  const { data, isInitialLoading, error, refetch } = useDataNode(dataNodeId);
 
   if (isInitialLoading) {
     return <Spinner />;
@@ -103,14 +96,16 @@ const DataNodePage = () => {
                   {datanode.data_node_status || 'N/A'}
                 </StatusLabel>
               </dd>
-              <dt>Is leader:</dt>
-              <dd><BooleanValue value={datanode.is_leader} /></dd>
               <dt>Certificate valid until:</dt>
-              <dd><RelativeTime dateTime={datanode.cert_valid_until} /> <CertRenewalButton nodeId={datanode.node_id} status={datanode.status} /></dd>
+              <dd><RelativeTime dateTime={datanode.cert_valid_until} /> <CertRenewalButton nodeId={datanode.node_id}
+                                                                                           status={datanode.status} />
+              </dd>
+              <dt>Datanode version:</dt>
+              <dd>{datanode.datanode_version}</dd>
             </StyledHorizontalDl>
           </Col>
           <ActionsCol xs={3}>
-            <DataNodeActions dataNode={datanode} displayAs="buttons" />
+            <DataNodeActions dataNode={datanode} refetch={refetch} displayAs="buttons" />
           </ActionsCol>
         </Col>
       </Row>

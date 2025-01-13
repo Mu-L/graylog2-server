@@ -30,7 +30,7 @@ import usePluginEntities from 'hooks/usePluginEntities';
 import AppConfig from 'util/AppConfig';
 import GlobalContextProviders from 'contexts/GlobalContextProviders';
 import HotkeysProvider from 'contexts/HotkeysProvider';
-import { defaultPerspective } from 'fixtures/perspectives';
+import { defaultPerspective as mockDefaultPerspective } from 'fixtures/perspectives';
 
 import AppRouter from './AppRouter';
 
@@ -43,7 +43,6 @@ jest.mock('components/errors/RouterErrorBoundary', () => mockComponent('RouterEr
 jest.mock('pages/StartPage', () => () => <>This is the start page</>);
 jest.mock('hooks/usePluginEntities');
 jest.mock('contexts/GlobalContextProviders', () => jest.fn(({ children }: React.PropsWithChildren<{}>) => children));
-jest.mock('hooks/useFeature', () => (featureFlag: string) => featureFlag === 'frontend_hotkeys');
 
 jest.mock('util/AppConfig', () => ({
   gl2AppPathPrefix: jest.fn(() => ''),
@@ -58,6 +57,13 @@ jest.mock('react-router-dom', () => ({
   createBrowserRouter: jest.fn(),
 }));
 
+jest.mock('components/perspectives/hooks/useActivePerspective', () => ({
+  __esModule: true,
+  default: () => ({
+    activePerspective: mockDefaultPerspective,
+  }),
+}));
+
 const AppRouterWithContext = () => (
   <HotkeysProvider>
     <DefaultProviders>
@@ -67,10 +73,6 @@ const AppRouterWithContext = () => (
     </DefaultProviders>
   </HotkeysProvider>
 );
-
-AppRouterWithContext.defaultProps = {
-  path: '/',
-};
 
 const setInitialPath = (path: string) => {
   asMock(createBrowserRouter).mockImplementation((routes: RouteObject[]) => createMemoryRouter(routes, {
@@ -87,7 +89,7 @@ const mockRoutes = (routes: PluginExports['routes']) => {
 
 describe('AppRouter', () => {
   const defaultPlugins = {
-    perspectives: [defaultPerspective],
+    perspectives: [mockDefaultPerspective],
   };
 
   beforeEach(() => {

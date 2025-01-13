@@ -14,7 +14,6 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-import PropTypes from 'prop-types';
 import * as React from 'react';
 import { useCallback, useState, useEffect } from 'react';
 import { useFormikContext } from 'formik';
@@ -24,6 +23,7 @@ import { PluginStore } from 'graylog-web-plugin/plugin';
 import type {
   RetentionStrategyConfig,
   RotationStrategy,
+  RetentionStrategy,
   TimeBasedRotationStrategyConfig,
   JsonSchema,
   StrategyConfig,
@@ -47,6 +47,7 @@ type IndexMaintenanceStrategiesFormValues = {
   rotation_strategy?: RotationStrategy,
   rotation_strategy_class?: string,
   retention_strategy_class?: string,
+  retention_strategy?: RetentionStrategy,
 }
 
 interface ConfigComponentProps extends SystemConfigurationComponentProps {
@@ -64,18 +65,19 @@ type Props = {
   name: string,
   description?: string,
   selectPlaceholder: string,
+  label: string,
   pluginExports: Array<{
     type: string,
     displayName: string,
     configComponent: React.ComponentType<ConfigComponentProps>
   }>,
   strategies: Strategies,
-  retentionStrategiesContext: {
+  retentionStrategiesContext?: {
     max_index_retention_period?: string,
   },
   activeConfig: {
-    strategy: string,
-    config: StrategyConfig,
+    strategy?: string,
+    config?: StrategyConfig,
   },
   getState: (strategy: string, data: StrategyConfig) => {
     rotation_strategy_config?: StrategyConfig,
@@ -95,8 +97,6 @@ const StyledSelect = styled(Select)`
 `;
 const StyledAlert = styled(Alert)`
   overflow: auto;
-  margin-right: 15px;
-  margin-left: 15px;
 `;
 
 const getStrategyJsonSchema = (selectedStrategy: string, strategies: Strategies) : JsonSchema | undefined => {
@@ -157,7 +157,7 @@ const getConfigurationComponent = (
     return null;
   }
 
-  const strategyType = typeof strategy === 'string' ? strategy : strategy.type;
+  const strategyType = typeof strategy === 'string' ? strategy : strategy?.type;
 
   const strategyConfig = getStrategyConfig(configTypeName, selectedStrategy, strategyType, config, strategies);
 
@@ -181,9 +181,12 @@ const IndexMaintenanceStrategiesConfiguration = ({
   name,
   description,
   selectPlaceholder,
+  label,
   pluginExports,
   strategies,
-  retentionStrategiesContext: { max_index_retention_period: maxRetentionPeriod },
+  retentionStrategiesContext: { max_index_retention_period: maxRetentionPeriod } = {
+    max_index_retention_period: undefined,
+  },
   activeConfig: { strategy, config },
   getState,
 } : Props) => {
@@ -196,6 +199,7 @@ const IndexMaintenanceStrategiesConfiguration = ({
       rotation_strategy_class: rotationStrategyClass,
       retention_strategy_class: retentionStrategyClass,
     },
+    errors,
   } = useFormikContext<IndexMaintenanceStrategiesFormValues>();
 
   const [maxNumberOfIndices, setMaxNumberOfIndices] = useIndexRetention().useMaxNumberOfIndices;
@@ -214,7 +218,7 @@ const IndexMaintenanceStrategiesConfiguration = ({
   const shouldShowNormalRetentionForm = (!isTimeBasedSizeOptimizing || (name === 'retention' && (!retentionIsNotNoop || !isArchiveRetention)));
   const helpText = isTimeBasedSizeOptimizing && name === 'rotation'
     ? 'The Time Based Size Optimizing Rotation Strategy tries to rotate the index daily.'
-    + ' It can however skip the rotation to achieve optimal sized indices by keeping the shard size between 20 and 50 GB.'
+    + ' It can however skip the rotation to achieve optimal sized indices by keeping the shard size within an acceptable range.'
     + ' The optimization can delay the rotation within the range of the configured retention min/max lifetime.'
     + ' If an index is older than the range between min/max, it will be rotated regardless of its current size.'
     : null;
@@ -261,7 +265,13 @@ const IndexMaintenanceStrategiesConfiguration = ({
     const isSelectedItemInList = availableStrategies.filter((availableStrategy) => availableStrategy.type === newStrategy).length > 0;
 
     if (!isSelectedItemInList) {
-      return [...availableStrategies, pluginExports.find((pluginOptions) => pluginOptions.type === newStrategy)].map((pluginOptions) => ({ value: pluginOptions.type, label: pluginOptions.displayName }));
+      const selectedItemStrategy = pluginExports.find((pluginOptions) => pluginOptions.type === newStrategy);
+
+      if (selectedItemStrategy) {
+        return [...availableStrategies, selectedItemStrategy].map((pluginOptions) => ({ value: pluginOptions.type, label: pluginOptions.displayName }));
+      }
+
+      return availableStrategies.map((pluginOptions) => ({ value: pluginOptions.type, label: pluginOptions.displayName }));
     }
 
     return availableStrategies
@@ -273,7 +283,7 @@ const IndexMaintenanceStrategiesConfiguration = ({
   const getActiveSelection = () => newStrategy;
 
   const shouldShowInvalidRetentionWarning = () => (
-    name === RETENTION && !getStrategyJsonSchema(getActiveSelection(), strategies)
+    !!newStrategy && name === RETENTION && !getStrategyJsonSchema(getActiveSelection(), strategies)
   );
 
   return (
@@ -305,9 +315,9 @@ const IndexMaintenanceStrategiesConfiguration = ({
       <Row>
         <Col md={12}>
           <Input id="strategy-select"
-                 labelClassName="col-sm-3"
-                 wrapperClassName="col-sm-9"
-                 label={selectPlaceholder}>
+                 error={errors[`${name}_strategy_class`]}
+                 name={`${name}_strategy_class`}
+                 label={label}>
             <StyledSelect placeholder={selectPlaceholder}
                           options={getAvailableSelectOptions()}
                           matchProp="label"
@@ -343,27 +353,6 @@ const IndexMaintenanceStrategiesConfiguration = ({
       </Row>
     </div>
   );
-};
-
-IndexMaintenanceStrategiesConfiguration.propTypes = {
-  title: PropTypes.string.isRequired,
-  name: PropTypes.string.isRequired,
-  description: PropTypes.string,
-  selectPlaceholder: PropTypes.string.isRequired,
-  pluginExports: PropTypes.array.isRequired,
-  strategies: PropTypes.array.isRequired,
-  retentionStrategiesContext: PropTypes.shape({
-    max_index_retention_period: PropTypes.string,
-  }),
-  activeConfig: PropTypes.object.isRequired,
-  getState: PropTypes.func.isRequired,
-};
-
-IndexMaintenanceStrategiesConfiguration.defaultProps = {
-  description: undefined,
-  retentionStrategiesContext: {
-    max_index_retention_period: undefined,
-  },
 };
 
 export default IndexMaintenanceStrategiesConfiguration;

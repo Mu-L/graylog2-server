@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import OverlayDropdownButton from 'components/common/OverlayDropdownButton';
-import MenuItem from 'components/bootstrap/MenuItem';
+import { MenuItem } from 'components/bootstrap';
 import { HoverForHelp, Icon } from 'components/common';
 import type { Attributes } from 'stores/PaginationTypes';
 import type { Filters, Filter } from 'components/common/EntityFilters/types';
@@ -79,7 +79,7 @@ const CreateFilterDropdown = ({ filterableAttributes, filterValueRenderers, onCr
                              buttonTitle="Create Filter"
                              onToggle={onToggleDropdown}
                              closeOnSelect={false}
-                             dropdownZIndex={1000}>
+                             dropdownZIndex={1050}>
         {({ toggleDropdown }) => {
           const _onCreateFilter = (filter: { title: string, value: string }, closeDropdown = true) => {
             if (closeDropdown) {

@@ -14,7 +14,6 @@
  * along with this program. If not, see
  * <http://www.mongodb.com/licensing/server-side-public-license>.
  */
-import PropTypes from 'prop-types';
 import React from 'react';
 import styled from 'styled-components';
 
@@ -43,15 +42,6 @@ const SpacedActions = styled.div`
 `;
 
 class DecoratorSummary extends React.Component<Props, State> {
-  static propTypes = {
-    decorator: PropTypes.object.isRequired,
-    decoratorTypes: PropTypes.object.isRequired,
-    disableMenu: PropTypes.bool,
-    typeDefinition: PropTypes.object.isRequired,
-    onDelete: PropTypes.func.isRequired,
-    onUpdate: PropTypes.func.isRequired,
-  };
-
   static defaultProps = {
     disableMenu: false,
   };
@@ -153,7 +143,7 @@ class DecoratorSummary extends React.Component<Props, State> {
                                                 includeTitleField={false}
                                                 submitAction={this._handleSubmit}
                                                 cancelAction={this._closeEditForm}
-                                                wrapperComponent={wrapperComponent}
+                                                wrapperComponent={wrapperComponent as React.ComponentProps<typeof ConfigurationForm>['wrapperComponent']}
                                                 values={decorator.config} />
       )
       : (
