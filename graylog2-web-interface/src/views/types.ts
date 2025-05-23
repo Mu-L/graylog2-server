@@ -63,7 +63,6 @@ import type { Event } from 'components/events/events/types';
 import type { PluggableReducer } from 'store';
 import type { WidgetMapping } from 'views/logic/views/types';
 import type { ValueRendererProps } from 'views/components/messagelist/decoration/ValueRenderer';
-import type { EventDefinition } from 'components/event-definitions/event-definitions-types';
 
 export type ArrayElement<ArrayType extends readonly unknown[]> = ArrayType extends readonly (infer ElementType)[]
   ? ElementType
@@ -216,6 +215,7 @@ export interface SystemConfiguration {
   configType: string;
   displayName?: string;
   component: React.ComponentType<SystemConfigurationComponentProps>;
+  useCondition?: () => boolean;
 }
 
 export type GenericResult = {
@@ -317,11 +317,10 @@ type AssetInformationComponentProps = {
 };
 
 type EventProcedureFormProps = {
-  eventDefinition: EventDefinition;
   eventProcedureID: string | undefined;
+  remediationSteps: string;
   onClose: () => void;
   onSave: (eventProcedureId: string) => void;
-  canEdit: boolean;
 };
 
 type EventProcedureSummaryProps = {
@@ -524,6 +523,32 @@ export type SearchDataSource = {
   useCondition: () => boolean;
 };
 
+type LICENSE_SUBJECTS = {
+  enterprise: '/license/enterprise';
+  archive: '/license/enterprise/archive';
+  auditlog: '/license/enterprise/auditlog';
+  illuminate: '/license/enterprise/illuminate';
+  searchFilter: '/license/enterprise/search-filter';
+  customization: '/license/enterprise/customization';
+  views: '/license/enterprise/views';
+  forwarder: '/license/enterprise/forwarder';
+  report: '/license/enterprise/report';
+  security: '/license/security';
+  anomaly: '/license/anomaly';
+};
+
+type LicenseSubject = LICENSE_SUBJECTS[keyof LICENSE_SUBJECTS];
+
+export type LicenseCheck = (subject: LicenseSubject) => {
+  data: {
+    valid: boolean;
+    expired: boolean;
+    violated: boolean;
+  };
+  isInitialLoading: boolean;
+  refetch: () => void;
+};
+
 declare module 'graylog-web-plugin/plugin' {
   export interface PluginExports {
     creators?: Array<Creator>;
@@ -590,5 +615,6 @@ declare module 'graylog-web-plugin/plugin' {
     'views.queryInput.commandContextProviders'?: Array<CustomCommandContextProvider<any>>;
     visualizationTypes?: Array<VisualizationType<any>>;
     widgetCreators?: Array<WidgetCreator>;
+    'licenseCheck'?: LicenseCheck;
   }
 }

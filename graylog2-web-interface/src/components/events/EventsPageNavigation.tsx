@@ -17,19 +17,24 @@
 import * as React from 'react';
 
 import PageNavigation from 'components/common/PageNavigation';
-import Routes from 'routing/Routes';
+import usePluginEntities from 'hooks/usePluginEntities';
 import { Row } from 'components/bootstrap';
+import { ALERTS_TITLE } from 'components/events/bindings';
 
-const NAV_ITEMS = [
-  { title: 'Alerts & Events', path: Routes.ALERTS.LIST, exactPathMatch: true },
-  { title: 'Event Definitions', path: Routes.ALERTS.DEFINITIONS.LIST },
-  { title: 'Notifications', path: Routes.ALERTS.NOTIFICATIONS.LIST },
-];
+const EventsPageNavigation = () => {
+  const navigationItems = usePluginEntities('alerts.pageNavigation');
 
-const EventsPageNavigation = () => (
-  <Row>
-    <PageNavigation items={NAV_ITEMS} />
-  </Row>
-);
+  const formattedNavigationItems = navigationItems.map(({ description, ...item }) => ({
+    ...item,
+    title: description,
+    exactPathMatch: description === ALERTS_TITLE,
+  }));
+
+  return (
+    <Row>
+      <PageNavigation items={formattedNavigationItems} />
+    </Row>
+  );
+};
 
 export default EventsPageNavigation;
